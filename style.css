@@ -90,4 +90,5 @@
 .crawl-pulse small{font-size:8px;color:#d6b9eb}
 .crawl-status{min-height:28px;max-width:38ch;margin-inline:auto;line-height:1.5}
 .type-crawl .compact-result{padding-bottom:2px}
+.temple-replay{display:block;margin:12px auto 0;color:#d8b6f2}
 @media(max-height:720px){.crawl-dpad{grid-template-columns:repeat(3,38px);grid-template-rows:repeat(3,29px);gap:3px}.crawl-pulse{width:103px;min-height:82px}.crawl-controls{gap:25px;margin-block:3px 7px}.crawl-status{font-size:9px;min-height:25px}}

@@ -16,6 +16,8 @@ Captions and speech occupy separate rows above and below the illustration; neith
 
 After implementing the tactical encounter, Reiveaux steps into an original, Zelda-inspired living temple. Move the crimson-coated maker with the touch D-pad, arrow keys, or WASD. Gather three floating runes, pulse magic to stun patrolling wisps, and unlock the northern portal; that rescued rune leads directly into the mirror transformation. Animated walking, cloak motion, flames, water, particles, orbiting runes, and portal light make it a playable scene. A wisp returns you to your last rune without losing collected progress. **Hint** automatically plays one legal movement step with a short protective shimmer. Existing saves migrate without moving players to a different story beat.
 
+The floating **⋯** story menu includes **Play the living temple** for a direct jump, and the completed temple can be replayed. These reset that mini-scene alone, preserving the player’s other choices and prototype.
+
 Fantasy effects include drifting magical particles, scene entrances, speech-bubble motion, corridor enchantments, character hops, igniting seals, spell and healing effects, a mirror transformation burst, and a shower of gold in the finale. Reduced-motion preferences skip decorative movement and show dice results immediately.
 
 All four original illustrations are retained unchanged. The story takes a few minutes to read; the puzzles and prototype provide the rest of a short, roughly ten-minute session at the player’s pace.

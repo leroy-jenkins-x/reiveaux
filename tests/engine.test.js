@@ -1,64 +1,64 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createState,check,die,resolveChoice,rerollGate,advance,readSave,blueprintText} from '../engine.js';
-import {scenes} from '../story.js';
+import {panels} from '../story.js';
+import {createState,newRoom,ports,roomConnected,rotateTile,testRoom,solution,choose,check,die,rollDice,neighbors,selectMove,battleAction,restBattle,advance,updateDesign,playPrototype,planText,readSave} from '../engine.js';
+const at=id=>({...createState(),started:true,step:panels.findIndex(p=>p.id===id)});
+function solve(s){for(const [key,rotation] of Object.entries(solution)){const index=Number(key);while(s.room.tiles[index].rotation!==rotation)s=rotateTile(s,index);}return testRoom(s);}
+function act(s,pos,action){return battleAction(selectMove(s,pos),action);}
+function winBattle(s){s=act(s,3,'wait');s=act(s,0,'illuminate');s=act(s,1,'wait');s=act(s,2,'strike');s=act(s,5,'wait');return act(s,8,'ward');}
 
-function next(s,c,p={},rng=()=>.5){return advance(resolveChoice(s,c,p,rng));}
-function gateState(party='scout') {
-  let s={...createState(),started:true};s=next(s,'rescue');s=next(s,party);return s;
-}
-test('d20 checks meet the target, and advantage/disadvantage choose the correct die',()=>{
-  assert.equal(die(20,()=>0),1);assert.equal(die(20,()=>.999),20);
-  assert.equal(check({bonus:3,dc:13},()=>.45).success,true);
-  assert.equal(check({bonus:3,dc:13},()=>.4).success,false);
-  let rolls=[.1,.9];assert.equal(check({mode:'advantage'},()=>rolls.shift()).kept,19);
-  rolls=[.1,.9];assert.equal(check({mode:'disadvantage'},()=>rolls.shift()).kept,3);
-  assert.throws(()=>die(20,()=>1));
+test('corridor puzzle requires reciprocal ports and a connected entrance-to-exit path',()=>{
+  const initial=newRoom();assert.equal(roomConnected(initial),false);
+  let s=at('room');s=solve(s);assert.equal(s.room.solved,true);assert.ok(s.outcomes.room);assert.equal(advance(s).step,s.step+1);
+  const broken=structuredClone(s.room);broken.tiles[12].rotation=1;assert.equal(roomConnected(broken),false);
+  const middle=structuredClone(s.room);middle.tiles[5].rotation=3;assert.equal(roomConnected(middle),false);
+  assert.throws(()=>rotateTile(s,0));assert.throws(()=>rotateTile(at('room'),16));
+  let cycle=at('room');const before=cycle.room.tiles[0].rotation;for(let i=0;i<4;i++)cycle=rotateTile(cycle,0);assert.equal(cycle.room.tiles[0].rotation,before);
+  assert.deepEqual(ports({shape:'corner',rotation:3}),[3,0]);
 });
-test('gate applies relevant proficiency and a failed check opens a fallback',()=>{
-  const s=gateState(),original=JSON.stringify(s);
-  const skilled=resolveChoice(s,'scout',{},()=>.4);
-  const unskilled=resolveChoice(s,'scholar',{},()=>.4);
-  assert.equal(skilled.outcomes.gate.roll.bonus,5);assert.equal(skilled.hp,12);
-  assert.equal(unskilled.outcomes.gate.roll.bonus,3);assert.equal(unskilled.hp,10);
-  assert.equal(advance(unskilled).scene,3);assert.equal(JSON.stringify(s),original);
-  assert.throws(()=>resolveChoice(skilled,'scout'));
+test('d20 rolls are real, modifiers meet the target, and advantage keeps the higher die',()=>{
+  assert.equal(die(20,()=>0),1);assert.equal(die(20,()=>.999),20);assert.throws(()=>die(20,()=>1));
+  assert.equal(check(3,13,false,()=>.45).success,true);assert.equal(check(3,13,false,()=>.4).success,false);
+  const rng=[.1,.9];const r=check(3,14,true,()=>rng.shift());assert.deepEqual(r.rolls,[3,19]);assert.equal(r.kept,19);assert.equal(r.total,22);
+  let s=at('gate');s.answers.ally='scholar';s=rollDice(s,()=>0);assert.equal(s.outcomes.gate.roll.bonus,5);assert.equal(s.outcomes.gate.roll.success,false);
+  assert.doesNotThrow(()=>advance(s));assert.throws(()=>rollDice(s));
+  s=rollDice(s,()=>.999,{reroll:true});assert.equal(s.inspiration,false);assert.equal(s.outcomes.gate.roll.kept,20);assert.throws(()=>rollDice(s,()=>0,{reroll:true}));
 });
-test('Heroic Inspiration must use the new die, consumes once, and corrects gate damage',()=>{
-  let s=resolveChoice(gateState(),'scout',{},()=>0);assert.equal(s.hp,10);
-  s=rerollGate(s,()=>.99);assert.equal(s.hp,12);assert.equal(s.inspiration,false);
-  assert.throws(()=>rerollGate(s));
-  const passed=resolveChoice(gateState(),'scout',{},()=>.99);
-  const failed=rerollGate(passed,()=>0);assert.equal(failed.hp,10);assert.equal(failed.outcomes.gate.roll.success,false);
+test('encounter enforces adjacent movement, one action, spell costs, and a solvable route',()=>{
+  let s=at('battle');const before=JSON.stringify(s);
+  assert.deepEqual(neighbors(6),[3,7]);assert.throws(()=>selectMove(s,0));assert.throws(()=>battleAction(s,'ward'));
+  s=winBattle(s);assert.equal(s.battle.solved,true);assert.equal(s.battle.slots,0);assert.equal(s.battle.hp,6);assert.deepEqual(s.battle.lit,[0,2,8]);assert.equal(s.battle.turn,7);assert.ok(s.outcomes.battle);assert.doesNotThrow(()=>advance(s));assert.throws(()=>battleAction(s,'strike'));
+  assert.equal(JSON.stringify(at('battle')),before);
+  assert.throws(()=>battleAction({...at('battle'),battle:{...at('battle').battle,move:0}},'ward'));
 });
-test('spell slots, Hit Dice, legal actions, and both rests maintain resource limits',()=>{
-  let s=next(gateState(),'scout');s=next(s,'help');
-  assert.throws(()=>resolveChoice(s,'plan',{move:'teleport',action:'help'}));
-  s=next(s,'plan',{move:'bridge',action:'help'});s=next(s,'step');
-  assert.equal(s.slots,0);
-  const short=resolveChoice(s,'short',{},()=>.99);assert.equal(short.slots,0);assert.equal(short.hitDice,0);assert.equal(short.hp,12);
-  const long=resolveChoice(s,'long');assert.equal(long.slots,2);assert.equal(long.hitDice,1);assert.equal(long.hp,12);
+test('a failed spell test consumes slots; dragon fire and a rest permit a meaningful retry',()=>{
+  let s=at('battle');s=act(s,6,'ward');s=act(s,6,'illuminate');assert.equal(s.battle.slots,0);assert.equal(s.battle.lit.length,0);
+  assert.throws(()=>battleAction(selectMove(s,6),'ward'));
+  s=restBattle(s);assert.equal(s.battle.slots,2);assert.equal(s.battle.hp,6);assert.equal(s.battle.pos,6);
+  s=act(s,3,'wait');s=act(s,4,'wait');s=act(s,4,'wait');s=act(s,4,'wait');assert.equal(s.battle.defeated,true);assert.equal(s.battle.hp,0);assert.throws(()=>selectMove(s,3));
+  assert.equal(winBattle(restBattle(s)).battle.solved,true);
 });
-test('all branches reach the female maker’s success and the player’s notebook, even with the lowest dice',()=>{
-  let traversed=0;
-  function visit(s) {
-    const scene=scenes[s.scene];
-    if(scene.type==='blueprint') {
-      assert.equal(s.woman,true);assert.ok(s.gold>1000000);assert.ok(s.admiration>=52000);
-      assert.equal(s.notebook.length,11);assert.ok(s.hp>=1&&s.hp<=12);assert.ok(s.slots>=0&&s.slots<=2);
-      assert.match(blueprintText(s),/FIRST 20 MINUTES/);traversed++;return;
+test('the transformation is joyful, chosen names persist, and even failed dice reach the finale',()=>{
+  for(const vow of ['rescue','light'])for(const ally of ['scout','scholar'])for(const name of ['madame','monsieur'])for(const launch of ['festival','friends']){
+    let s={...createState(),started:true};
+    while(panels[s.step].id!=='done'){
+      const p=panels[s.step];
+      if(p.id==='vow')s=choose(s,vow);else if(p.id==='ally')s=choose(s,ally);else if(p.id==='name')s=choose(s,name);else if(p.id==='launch')s=choose(s,launch);
+      else if(p.type==='pipes')s=solve(s);else if(p.type==='dice')s=rollDice(s,()=>0);else if(p.type==='battle')s=winBattle(s);else if(p.type==='test')s=playPrototype(s,'bold',()=>0);
+      s=advance(s);
     }
-    const choices=scene.type==='turn'?[['plan',{move:'cover',action:'help'}],['plan',{move:'cover',action:'attack'}],['plan',{move:'bridge',action:'help'}],['plan',{move:'bridge',action:'attack'}]]:scene.choices.map(c=>[c.id,{}]);
-    for(const [c,p] of choices) visit(next(s,c,p,()=>0));
+    assert.equal(s.woman,true);assert.equal(s.identity,name==='madame'?'Madame Reiveaux':'Monsieur Reiveaux');assert.equal(s.answers.launch,launch);assert.match(planText(s),/FIRST 20 MINUTES/);
   }
-  visit({...createState(),started:true});assert.equal(traversed,10368);
 });
-test('save/resume preserves outcomes, malformed saves recover, and blueprint exports the player’s words',()=>{
-  const s=resolveChoice(gateState(),'scout',{},()=>.99);
-  assert.deepEqual(readSave(JSON.stringify(s)),s);assert.deepEqual(readSave('broken'),createState());
-  assert.deepEqual(readSave(JSON.stringify({...s,scene:99})),createState());
-  assert.deepEqual(readSave(JSON.stringify({...s,outcomes:{...s.outcomes,gate:{title:'Broken',text:'Bad data',implemented:'Missing roll'}}})),createState());
-  assert.throws(()=>advance({...createState(),started:true}));
-  s.blueprint={title:'My own game',fantasy:'A lost astronomer',choice:'Save the stars or the city',mechanic:'Spend one star to light a path.'};
-  assert.match(blueprintText(s),/A lost astronomer/);assert.match(blueprintText(s),/Save the stars or the city/);
+test('player-made prototypes use their chosen world, goal, and rule, and export a portable plan',()=>{
+  let s=at('test');s=updateDesign(s,'world','garden');s=updateDesign(s,'goal','treasure');s=updateDesign(s,'rule','light');s=updateDesign(s,'title','The Moon Garden');
+  s=playPrototype(s,'bold',()=>.99);assert.equal(s.outcomes.test.roll.rolls.length,1);assert.match(s.outcomes.test.text,/lost treasure/);assert.match(planText(s),/The Moon Garden/);assert.match(planText(s),/haunted garden/);assert.throws(()=>playPrototype(s,'safe'));
+  const help=playPrototype(at('test'),'bold',()=>.1);assert.equal(help.outcomes.test.roll.rolls.length,2);
+  assert.equal(playPrototype(at('test'),'safe').outcomes.test.roll,null);assert.throws(()=>updateDesign(s,'world','unknown'));
+});
+test('save/resume keeps puzzle rotations and moves; old or malformed saves start clean',()=>{
+  let s=rotateTile(at('room'),3);assert.deepEqual(readSave(JSON.stringify(s)),s);
+  s=selectMove(at('battle'),3);assert.deepEqual(readSave(JSON.stringify(s)),s);
+  assert.deepEqual(readSave('broken'),createState());assert.deepEqual(readSave(JSON.stringify({version:1})),createState());assert.deepEqual(readSave(JSON.stringify({...s,step:100})),createState());
+  assert.throws(()=>advance(at('room')));assert.throws(()=>advance(at('gate')));
 });

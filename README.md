@@ -10,7 +10,11 @@ The main adventure fits the viewport: no vertical chapter scrolling and no page 
 
 During play, the navbar is removed. A small floating options button opens the notebook, previous panel, sound, and full-art viewer without reserving a navigation strip.
 
-Dice throws use a full-scene canvas renderer with a real 20-face solid, rotating numbered faces, ballistic movement, bounces, shadows, rune rings, and landing sparks. The actual result and modifier remain visible until the player presses **Keep this roll**. Advantage throws two dice; the risky route in the player’s own prototype uses the same animation.
+Dice throws use a 4.4-second full-screen ritual: a real numbered, 20-face solid with obsidian facets and gold edges materializes, spins on three axes, flies, bounces, rolls across a glowing rune circle, and settles on the actual result. Trails, multiple contact shockwaves, sparks, shadows, and optional impact sounds follow the throw. The result and modifier remain visible until **Keep this roll**. **Replay the throw** replays the same result without rerolling or changing progress. Advantage throws two dice; the player’s risky prototype route uses the same animation. Reduced-motion users can explicitly choose **Play full dice animation**.
+
+Captions and speech occupy separate rows above and below the illustration; neither can overlap the character. Individual image crops keep Reiveaux’s face prominent. The next-action button pulses with warm gold magic. Hints glow violet and carry small animated sparkles.
+
+After implementing the tactical encounter, Reiveaux steps into an original, Zelda-inspired living temple. Move the crimson-coated maker with the touch D-pad, arrow keys, or WASD. Gather three floating runes, pulse magic to stun patrolling wisps, and unlock the northern portal; that rescued rune leads directly into the mirror transformation. Animated walking, cloak motion, flames, water, particles, orbiting runes, and portal light make it a playable scene. A wisp returns you to your last rune without losing collected progress. **Hint** automatically plays one legal movement step with a short protective shimmer. Existing saves migrate without moving players to a different story beat.
 
 Fantasy effects include drifting magical particles, scene entrances, speech-bubble motion, corridor enchantments, character hops, igniting seals, spell and healing effects, a mirror transformation burst, and a shower of gold in the finale. Reduced-motion preferences skip decorative movement and show dice results immediately.
 
@@ -37,7 +41,7 @@ npm test
 npm run build
 ```
 
-The included GitHub Actions workflow validates and builds `dist/`, then publishes to GitHub Pages on each push to `main`. Pages source is **GitHub Actions**. All asset URLs are relative and work under `/reiveaux/`.
+The included GitHub Actions workflow validates and builds `dist/`, then publishes to GitHub Pages on each push to `main`. Pages source is **GitHub Actions**. All asset URLs are relative and work under `/reiveaux/`. Only the current experience is deployed at the regular URL. The build fingerprints JavaScript and CSS filenames to refresh browser caches; no version query is needed. Old shared `?v=` links open the current story and remove that obsolete parameter.
 
 `story.js` owns the short panels and design options; `engine.js` owns testable puzzles, dice, state, and the exported plan; `dice.js` renders animated throws; `app.js` and `style.css` own the fixed-screen UI. `tests/engine.test.js` checks puzzle connectivity, legal movement, slot costs, recovery, probability boundaries, complete story paths, persistence, helper behavior across varied puzzle states, and dice geometry/result correspondence.
 

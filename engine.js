@@ -1,10 +1,11 @@
-import {panels,worlds,goals,rules} from './story.js?v=3';
-export const VERSION=2;
+import {panels,worlds,goals,rules} from './story.js';
+import {newCrawl,SHRINES,EXIT,walkable} from './crawl.js';
+export const VERSION=3;
 export const route=[12,8,9,5,6,10,11,7,3];
 export const solution={12:3,8:1,9:3,5:1,6:2,10:0,11:3,7:1,3:1};
 export function newRoom(){return {tiles:Array.from({length:16},(_,i)=>({shape:i===7||[0,4,13].includes(i)?'straight':'corner',rotation:((solution[i]??i)+(i%3)+1)%4})),attempts:0,hint:false,solved:false};}
 export function newBattle(){return {pos:6,move:null,slots:2,hp:6,turn:1,lit:[],defeated:false,solved:false,message:'Tap a neighboring tile, then choose one action.'};}
-export function createState(){return {version:VERSION,started:false,step:0,beat:0,answers:{},outcomes:{},notebook:[],room:newRoom(),battle:newBattle(),inspiration:true,identity:'Monsieur Reiveaux',woman:false,diceApproach:'arcana',help:true,design:{title:'My first adventure',world:'sky',goal:'rescue',rule:'help'},test:null};}
+export function createState(){return {version:VERSION,started:false,step:0,beat:0,answers:{},outcomes:{},notebook:[],room:newRoom(),battle:newBattle(),crawl:newCrawl(),inspiration:true,identity:'Monsieur Reiveaux',woman:false,diceApproach:'arcana',help:true,design:{title:'My first adventure',world:'sky',goal:'rescue',rule:'help'},test:null};}
 export function die(sides=20,rng=Math.random){const v=rng();if(!Number.isFinite(v)||v<0||v>=1)throw new Error('Invalid random value');return Math.floor(v*sides)+1;}
 export function check(bonus,dc,advantage=false,rng=Math.random){const rolls=[die(20,rng)];if(advantage)rolls.push(die(20,rng));const kept=Math.max(...rolls);return {rolls,kept,bonus,dc,total:kept+bonus,success:kept+bonus>=dc,advantage};}
 export function ports(tile){return (tile.shape==='straight'?[1,3]:[0,1]).map(p=>(p+tile.rotation)%4);}
@@ -83,10 +84,11 @@ export function hintBattle(previous){
 }
 export function advance(previous){
   const s=structuredClone(previous),p=panels[s.step];if(!s.started||s.step>=panels.length-1)throw new Error('No next panel');
-  if(['choice','dice','pipes','battle','test'].includes(p.type)&&!s.outcomes[p.id])throw new Error('Play this panel first');
+  if(['choice','dice','pipes','battle','crawl','test'].includes(p.type)&&!s.outcomes[p.id])throw new Error('Play this panel first');
   if(p.lines&&s.beat<p.lines.length-1){s.beat++;if(p.id==='mirror'&&s.beat>=1)s.woman=true;return s;}
   addLesson(s,p.id);s.step++;s.beat=0;return s;
 }
+export function finishCrawl(previous){if(panels[previous.step]?.id!=='temple'||!previous.crawl.solved)throw new Error('Reach the temple door first');const s=structuredClone(previous);s.outcomes.temple={title:'Your creation is alive.',text:'Reiveaux connects movement, runes, and a working doorway. One rescued rune wakes a spell beyond the screen.'};addLesson(s,'temple');return s;}
 export function updateDesign(previous,field,value){const s=structuredClone(previous);if(field==='title')s.design.title=String(value).slice(0,60);else{const choices={world:worlds,goal:goals,rule:rules}[field];if(!choices?.some(c=>c.id===value))throw new Error('Unknown design');s.design[field]=value;}return s;}
 export function playPrototype(previous,door,rng=Math.random){
   if(panels[previous.step]?.id!=='test'||!['safe','bold'].includes(door)||previous.outcomes.test)throw new Error('Prototype choice unavailable');
@@ -96,8 +98,9 @@ export function playPrototype(previous,door,rng=Math.random){
   s.outcomes.test={title:door==='safe'?'A careful choice. A real game.':roll.success?'Your brave choice pays off.':'A setback opens a new path.',text:door==='safe'?`You spend your lantern to follow the ${place} and find ${goal}.`:roll.success?`You brave the dark, keep your lantern, and find ${goal}.`:`A hidden passage among the ${place} leads you onward. Your game keeps the story moving.`,roll};addLesson(s,'test','You made a player choose, applied a rule, and produced a consequence.');return s;
 }
 export function planText(s){const find=(arr,id)=>arr.find(v=>v.id===id)?.name||'';return `${s.design.title||'My first adventure'}\n\nWORLD: ${find(worlds,s.design.world)}\nGOAL: ${find(goals,s.design.goal)}\nRULE: ${find(rules,s.design.rule)}\n\nFIRST ROOM\nTwo exits: spend a lantern for a safe route, or brave a risky route.\n${s.design.rule==='help'?'A companion helps on the risky route: roll two d20s, keep the higher, add +3, and meet target 13.':'The lantern has one charge. A safe route spends it. A risky route keeps it: roll d20 + 3 against target 13.'}\nA setback opens a harder passage instead of ending the story.\n\nFIRST 20 MINUTES\n5 min: draw one room and two doors.\n5 min: give both doors a reward and a cost.\n10 min: write this rule and play with a friend.\nAsk what was confusing. Change one thing. Play again.\n\nThe Maker’s Spell · reiveaux\n`;}
-export function readSave(raw){try{const s=JSON.parse(raw);if(s?.version!==VERSION||!Number.isInteger(s.step)||s.step<0||s.step>=panels.length||!Number.isInteger(s.beat)||s.beat<0||s.beat>2||typeof s.started!=='boolean'||!s.answers||!s.outcomes||!Array.isArray(s.notebook)||!s.room||s.room.tiles?.length!==16||!s.battle||!s.design||typeof s.identity!=='string')return createState();
+export function readSave(raw){try{const s=JSON.parse(raw);if(s?.version===2&&Number.isInteger(s.step)&&s.step>=0&&s.step<15&&s.outcomes){s.version=VERSION;s.crawl=newCrawl();if(s.step>=7){s.step++;s.crawl={...s.crawl,pos:EXIT,collected:[...SHRINES],solved:true};s.outcomes.temple={title:'Your creation is alive.',text:'The maker’s temple leads to the mirror.'};}}if(s?.version!==VERSION||!Number.isInteger(s.step)||s.step<0||s.step>=panels.length||!Number.isInteger(s.beat)||s.beat<0||s.beat>2||typeof s.started!=='boolean'||!s.answers||!s.outcomes||!Array.isArray(s.notebook)||!s.room||s.room.tiles?.length!==16||!s.battle||!s.crawl||!s.design||typeof s.identity!=='string')return createState();
   if(s.room.tiles.some(t=>!['corner','straight'].includes(t.shape)||!Number.isInteger(t.rotation)||t.rotation<0||t.rotation>3)||!Number.isInteger(s.battle.pos)||s.battle.pos<0||s.battle.pos>8||!Number.isInteger(s.battle.slots)||s.battle.slots<0||s.battle.slots>2||!Number.isInteger(s.battle.hp)||s.battle.hp<0||s.battle.hp>6||!Array.isArray(s.battle.lit)||typeof s.design.title!=='string'||!worlds.some(x=>x.id===s.design.world)||!goals.some(x=>x.id===s.design.goal)||!rules.some(x=>x.id===s.design.rule))return createState();
   if(s.notebook.some(n=>typeof n.text!=='string'))return createState();
+  if(!walkable(s.crawl.pos)||!Number.isInteger(s.crawl.steps)||s.crawl.steps<0||!Array.isArray(s.crawl.collected)||s.crawl.collected.some(c=>!SHRINES.includes(c))||new Set(s.crawl.collected).size!==s.crawl.collected.length||typeof s.crawl.solved!=='boolean'||(s.crawl.solved&&(s.crawl.pos!==EXIT||s.crawl.collected.length!==3)))return createState();
   for(const out of Object.values(s.outcomes)){if(typeof out.title!=='string'||typeof out.text!=='string')return createState();if(out.roll&&(!Array.isArray(out.roll.rolls)||out.roll.rolls.some(n=>!Number.isInteger(n)||n<1||n>20)||!Number.isFinite(out.roll.total)||!Number.isFinite(out.roll.bonus)))return createState();}
   return s;}catch{return createState();}}

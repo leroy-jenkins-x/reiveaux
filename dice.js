@@ -1,5 +1,4 @@
-// A small canvas renderer: real 20-faced geometry, ballistic throws, bounces,
-// rotating numbered faces, shadows, rune rings, and a persistent final result.
+// Dependency-free 3D D20 renderer and a four-second fantasy tabletop throw.
 const PHI=(1+Math.sqrt(5))/2;
 const raw=[[-1,PHI,0],[1,PHI,0],[-1,-PHI,0],[1,-PHI,0],[0,-1,PHI],[0,1,PHI],[0,-1,-PHI],[0,1,-PHI],[PHI,0,-1],[PHI,0,1],[-PHI,0,-1],[-PHI,0,1]];
 export const vertices=raw.map(v=>{const length=Math.hypot(...v);return v.map(n=>n/length);});
@@ -9,44 +8,155 @@ export function projectedFaces(rx,ry,rz,radius=1){const points=vertices.map(v=>r
 export function faceNumbers(result){if(!Number.isInteger(result)||result<1||result>20)throw new Error('Expected a d20 result');const list=Array.from({length:20},(_,i)=>i+1),final=projectedFaces(-.24,.38,.08),front=final.at(-1).id;[list[front],list[result-1]]=[list[result-1],list[front]];return list;}
 const clamp=v=>Math.max(0,Math.min(1,v));
 const ease=v=>1-Math.pow(1-clamp(v),3);
-function drawDie(ctx,x,y,radius,angles,result,landed,alpha=1){
-  const mesh=projectedFaces(...angles,radius),numbers=faceNumbers(result),front=projectedFaces(-.24,.38,.08).at(-1).id;
-  ctx.save();ctx.translate(x,y);ctx.globalAlpha=alpha;
-  for(const face of mesh){if(face.depth<-.06)continue;const [a,b,c]=face.points;const light=clamp((face.depth+1)*.5);ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.lineTo(...c);ctx.closePath();
-    const fill=ctx.createLinearGradient(-radius,-radius,radius,radius);fill.addColorStop(0,`hsl(${landed?43:39} 75% ${38+light*40}%)`);fill.addColorStop(1,`hsl(31 64% ${18+light*26}%)`);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=landed?'#ffe6a0':'#e8bc6a';ctx.lineWidth=1.35;ctx.stroke();
-    if(face.depth>.08){const cx=(a[0]+b[0]+c[0])/3,cy=(a[1]+b[1]+c[1])/3;ctx.save();ctx.translate(cx,cy);let angle=Math.atan2(b[1]-a[1],b[0]-a[0]);if(angle>Math.PI/2)angle-=Math.PI;if(angle< -Math.PI/2)angle+=Math.PI;ctx.rotate(angle*.55);ctx.font=`bold ${Math.max(12,radius*(face.id===front&&landed?.40:.23))}px Georgia`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#14242c';ctx.shadowColor='#ffefb080';ctx.shadowBlur=landed&&face.id===front?8:0;ctx.fillText(String(numbers[face.id]),0,0);ctx.restore();}
-  }ctx.restore();
+export const THROW_DURATION=4400;
+const FINAL=[-.24,.38,.08];
+const IMPACTS=[.40,.54,.65,.92];
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// Position, altitude, scale and three-axis orientation share one timeline.
+// The last frame is stable and always agrees with faceNumbers(result).
+export function throwPose(progress,index=0,count=1){
+  const t=clamp(progress),landing=count===2?(index===0?.28:.72):.5;
+  const direction=index===1?-1:1;
+  let x,y,scale;
+  if(t<.16){
+    const p=t/.16;x=landing-direction*.23;y=-.55-Math.sin(p*Math.PI)*.18;scale=lerp(.45,.78,ease(p));
+  }else if(t<.40){
+    const p=(t-.16)/.24;x=landing+direction*lerp(-.23,.19,p);y=-.55*(1-p)-1.25*Math.sin(p*Math.PI);scale=lerp(.78,1,p);
+  }else if(t<.54){
+    const p=(t-.40)/.14;x=landing+direction*lerp(.19,-.11,p);y=-.63*Math.sin(p*Math.PI);scale=1;
+  }else if(t<.65){
+    const p=(t-.54)/.11;x=landing+direction*lerp(-.11,.06,p);y=-.32*Math.sin(p*Math.PI);scale=1;
+  }else{
+    const p=clamp((t-.65)/.35);x=landing+direction*.06*(1-ease(p));y=-Math.abs(Math.sin(p*Math.PI*3))*.12*(1-p);scale=1;
+  }
+  if(count===2)x=landing+(x-landing)*.25;
+  const remaining=Math.pow(1-t,3),wobble=t>.82?Math.sin((t-.82)*80)*Math.pow((1-t)/.18,2)*.14:0;
+  const angles=FINAL.map((angle,axis)=>angle+direction*Math.PI*2*([8.8,6.3,4.4][axis]+index*.35)*remaining+(axis===2?wobble:0));
+  return {x,y,scale,angles,phase:t<.16?'summon':t<.4?'flight':t<.65?'bounce':t<.92?'roll':t<1?'settle':'landed'};
 }
+
+function polygon(ctx,points){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.closePath();}
+function drawDie(ctx,x,y,radius,angles,numbers,landed,alpha=1){
+  const mesh=projectedFaces(...angles,radius),front=projectedFaces(...FINAL).at(-1).id;
+  ctx.save();ctx.translate(x,y);ctx.globalAlpha=alpha;
+  ctx.shadowColor='#72daff55';ctx.shadowBlur=landed?24:14;
+  for(const face of mesh){
+    if(face.depth<-.03)continue;
+    const [a,b,c]=face.points,light=clamp((face.depth+1)*.5),highlight=landed&&face.id===front;
+    polygon(ctx,face.points);
+    const fill=ctx.createLinearGradient(a[0],a[1],c[0],c[1]);
+    fill.addColorStop(0,highlight?'#fff0bc':`hsl(203 40% ${17+light*28}%)`);
+    fill.addColorStop(.45,highlight?'#d8ae60':`hsl(215 50% ${10+light*19}%)`);
+    fill.addColorStop(1,highlight?'#86602a':'#07131e');
+    ctx.fillStyle=fill;ctx.fill();ctx.shadowBlur=0;
+    ctx.strokeStyle=highlight?'#fff1bc':'#d3b46c';ctx.lineWidth=Math.max(1,radius*.015);ctx.stroke();
+    const cx=(a[0]+b[0]+c[0])/3,cy=(a[1]+b[1]+c[1])/3;
+    polygon(ctx,face.points.map(p=>[lerp(cx,p[0],.80),lerp(cy,p[1],.80)]));
+    ctx.strokeStyle=highlight?'#67482180':'#f6d38d45';ctx.lineWidth=.6;ctx.stroke();
+    if(face.depth>.10){
+      ctx.save();ctx.translate(cx,cy);
+      let angle=Math.atan2(b[1]-a[1],b[0]-a[0]);if(angle>Math.PI/2)angle-=Math.PI;if(angle< -Math.PI/2)angle+=Math.PI;
+      ctx.rotate(angle*.55);ctx.font=`bold ${Math.max(10,radius*(highlight?.39:.22))}px Georgia`;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=highlight?'#18222c':'#ffe8ae';
+      ctx.shadowColor=highlight?'#ffecc4':'#dfba64';ctx.shadowBlur=highlight?9:3;
+      ctx.fillText(String(numbers[face.id]),0,0);ctx.shadowBlur=0;
+      if(face.depth>.3){ctx.fillStyle=highlight?'#735225':'#ccb47b';ctx.beginPath();ctx.arc(0,radius*.16,1.25,0,Math.PI*2);ctx.fill();}
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+function drawSigil(ctx,x,y,radius,clock,alpha=1){
+  ctx.save();ctx.translate(x,y);ctx.scale(1,.37);ctx.globalAlpha=alpha;
+  const glow=ctx.createRadialGradient(0,0,radius*.2,0,0,radius*1.55);
+  glow.addColorStop(0,'#73d9ec35');glow.addColorStop(.65,'#5ed2e315');glow.addColorStop(1,'#58cce000');
+  ctx.fillStyle=glow;ctx.fillRect(-radius*1.6,-radius*1.6,radius*3.2,radius*3.2);
+  for(let ring=0;ring<3;ring++){
+    ctx.save();ctx.rotate(clock*(ring%2?-.15:.1));ctx.strokeStyle=ring===1?'#80cbd48a':'#e4c58580';ctx.lineWidth=ring===1?2:1;
+    ctx.setLineDash(ring===1?[4,13]:[]);ctx.beginPath();ctx.arc(0,0,radius*(.9+ring*.23),0,Math.PI*2);ctx.stroke();
+    if(ring===0){for(let i=0;i<6;i++){const a=i*Math.PI/3,b=a+Math.PI*2/3;ctx.beginPath();ctx.moveTo(Math.cos(a)*radius*.88,Math.sin(a)*radius*.88);ctx.lineTo(Math.cos(b)*radius*.88,Math.sin(b)*radius*.88);ctx.stroke();}}
+    if(ring===2){ctx.fillStyle='#efd18f';ctx.font=`${radius*.13}px Georgia`;ctx.textAlign='center';ctx.textBaseline='middle';const runes=['✦','ᚠ','ᚱ','ᚷ','ᛟ','ᚹ','☾','ᛞ','ᚨ','ᛉ','ᛏ','ᛒ'];for(let i=0;i<12;i++){ctx.save();ctx.rotate(i*Math.PI/6);ctx.translate(0,-radius*1.24);ctx.fillText(runes[i],0,0);ctx.restore();}}
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawAtmosphere(ctx,w,h,clock,motion){
+  const center=h*.40;
+  const glow=ctx.createRadialGradient(w*.5,center,15,w*.5,center,w*.7);
+  glow.addColorStop(0,'#254258');glow.addColorStop(.55,'#102432');glow.addColorStop(1,'#071019');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,w,h);
+  ctx.save();ctx.strokeStyle='#bb9b5435';ctx.lineWidth=1;
+  ctx.strokeRect(14,17,w-28,h-34);
+  for(const [x,y,sx,sy] of [[14,17,1,1],[w-14,17,-1,1],[14,h-17,1,-1],[w-14,h-17,-1,-1]]){
+    ctx.save();ctx.translate(x,y);ctx.scale(sx,sy);ctx.beginPath();ctx.moveTo(0,42);ctx.lineTo(0,10);ctx.quadraticCurveTo(0,0,10,0);ctx.lineTo(42,0);ctx.stroke();ctx.beginPath();ctx.moveTo(6,25);ctx.lineTo(14,14);ctx.lineTo(25,6);ctx.stroke();ctx.fillStyle='#e2bd6b';ctx.fillRect(9,9,3,3);ctx.restore();
+  }
+  for(let i=0;i<45;i++){
+    const x=(i*97.13)%w,y=(i*53.71+clock*(motion?5+i%4:0))%(h*.7),alpha=.2+(Math.sin(clock*.7+i)+1)*.16;
+    ctx.globalAlpha=alpha;ctx.fillStyle=i%3?'#e3c889':'#98d7e3';ctx.beginPath();ctx.arc(x,y,i%4===0?1.4:.7,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function animateDice(target,roll,{reduced=false,onImpact=()=>{}}={}){
   return new Promise(resolve=>{
     const layer=document.createElement('section');layer.className='roll-scene';layer.setAttribute('aria-label','On-screen dice throw');layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.tabIndex=-1;
-    layer.innerHTML='<div class="roll-ritual" aria-hidden="true">✧ &nbsp; ✦ &nbsp; ☾ &nbsp; ✦ &nbsp; ✧</div><p class="roll-invocation">LET FORTUNE SPEAK</p><canvas aria-hidden="true"></canvas><div class="landed-roll" role="status" aria-live="polite"></div><button class="primary dice-confirm" disabled>Keep this roll <span aria-hidden="true">→</span></button>';
+    layer.innerHTML='<canvas aria-hidden="true"></canvas><div class="roll-heading"><span class="ritual-eyebrow">THE MAKER’S SPELL</span><p class="roll-invocation">LET FORTUNE SPEAK</p><span class="ritual-subtitle">A twenty-sided fate, cast in starlight.</span></div><div class="roll-phase" aria-hidden="true">Summoning the D20…</div><div class="landed-roll" role="status" aria-live="polite"></div><div class="dice-controls"><button class="small-button dice-replay" disabled>Replay the throw ↺</button><button class="primary dice-confirm" disabled>Keep this roll <span aria-hidden="true">→</span></button></div>';
     const background=[...target.children].map(el=>[el,el.inert]);background.forEach(([el])=>el.inert=true);
     const restore=()=>background.forEach(([el,value])=>el.inert=value);
-    target.append(layer);layer.focus({preventScroll:true});const canvas=layer.querySelector('canvas'),ctx=canvas.getContext('2d'),button=layer.querySelector('button'),status=layer.querySelector('.landed-roll');
+    target.append(layer);layer.focus({preventScroll:true});
+    const canvas=layer.querySelector('canvas'),ctx=canvas.getContext('2d'),button=layer.querySelector('.dice-confirm'),replay=layer.querySelector('.dice-replay'),status=layer.querySelector('.landed-roll'),phaseLabel=layer.querySelector('.roll-phase');
     if(!ctx){restore();layer.remove();resolve();return;}
-    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,impacted=false;
-    const resize=()=>{width=target.clientWidth;height=target.clientHeight;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);if(ended)paint(start+duration);};resize();
+    const count=roll.rolls.length,numbers=roll.rolls.map(faceNumbers);
+    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,start=0,skipMotion=reduced,lastPhase='',impactIndex=0;
+    const resize=()=>{width=target.clientWidth;height=target.clientHeight;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);if(ended)paint(start+THROW_DURATION);};resize();
     const observer=new ResizeObserver(resize);observer.observe(target);
-    const motes=Array.from({length:72},(_,i)=>({angle:i*2.39996,speed:45+(i%7)*17,size:1+i%3}));
-    const duration=reduced?1:1950,start=performance.now();
+    const keptIndex=roll.rolls.indexOf(roll.kept);
+    const dice=roll.rolls.map((n,i)=>`<span class="${i===keptIndex?'kept':'lost'}"><b>${n}</b><small>${count>1?(i===keptIndex?'KEEP':'DISCARD'):'D20'}</small></span>`).join('');
+    const resultMarkup=`<div class="landed-numbers">${dice}</div><strong>${roll.kept} + ${roll.bonus} = ${roll.total}</strong><p>Target ${roll.dc} · ${roll.success?'Success':'A setback — the story continues'}</p>${roll.kept===20?'<em>NATURAL 20 ✦</em>':''}`;
+
     function paint(now){
-      const t=clamp((now-start)/duration),landed=t>=1;ctx.clearRect(0,0,width,height);
-      const centerY=height*.38,count=roll.rolls.length,radius=Math.min(width*(count===2?.185:.245),count===2?83:111);
+      const t=skipMotion?1:clamp((now-start)/THROW_DURATION),landed=t>=1,clock=skipMotion?0:(now-start)/1000;
+      const centerY=height*(height<=600?.37:.40),radius=Math.min(width*(count===2?.18:.25),height*.17,count===2?85:118),spread=1;
+      drawAtmosphere(ctx,width,height,clock,!skipMotion);
+      drawSigil(ctx,width*.5,centerY+radius*.9,width*.37,clock,landed?.75:.95);
       for(let i=0;i<count;i++){
-        const landingX=width*(count===2?(i===0?.29:.71):.5),flight=clamp(t/.46),bounce=clamp((t-.46)/.39),settle=ease((t-.80)/.20);
-        const x=t<.46?(-width*.35+landingX*ease(flight)+width*.35*ease(flight)):landingX+Math.sin(bounce*9+i)*radius*.30*(1-bounce);
-        const y=t<.46?(-radius*2+(centerY+radius*2)*flight*flight):centerY-Math.abs(Math.sin(bounce*Math.PI*2.5))*radius*.65*(1-bounce);
-        const spin=(1-settle),angles=[-.24+(t*17+i)*spin,.38+(t*27+i*2)*spin,.08+(t*12-i)*spin];
-        const glow=ctx.createRadialGradient(landingX,centerY+radius*.6,0,landingX,centerY+radius*.6,radius*1.8);glow.addColorStop(0,landed?'#f5ce7045':'#56bfce26');glow.addColorStop(1,'#dfbd7000');ctx.fillStyle=glow;ctx.fillRect(landingX-radius*2,centerY-radius,radius*4,radius*3);
-        ctx.save();ctx.translate(landingX,centerY+radius*.92);ctx.scale(1,.28);ctx.beginPath();ctx.arc(0,0,radius*(.6+flight*.45),0,Math.PI*2);ctx.fillStyle='#02081075';ctx.fill();ctx.strokeStyle=`rgba(225,194,112,${.15+flight*.5})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,radius*1.35,now/1200,now/1200+Math.PI*1.7);ctx.stroke();ctx.restore();
-        drawDie(ctx,x,y,radius,angles,roll.rolls[i],landed,landed&&count===2&&roll.rolls[i]!==roll.kept?.55:1);
-        if(t>.48&&!reduced){const p=clamp((t-.48)/.52);for(const m of motes){const distance=m.speed*p*1.8;ctx.globalAlpha=(1-p)*.8;ctx.fillStyle=m.size===1?'#a3e9ff':'#ffe7a4';ctx.beginPath();ctx.arc(landingX+Math.cos(m.angle)*distance,centerY+Math.sin(m.angle)*distance-radius*.15,m.size*(1-p*.7),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;}
+        const pose=throwPose(t,i,count),x=(pose.x-.5)*width*spread+width*.5,y=centerY+pose.y*radius;
+        const landingX=width*(count===2?(i===0?.28:.72):.5);
+        // Summoning light and a ribbon follow the airborne, rotating solid.
+        if(t<.40&&!skipMotion){
+          ctx.save();ctx.globalAlpha=.6*(1-clamp((t-.22)/.18));
+          const aura=ctx.createRadialGradient(x,y,0,x,y,radius*1.75);aura.addColorStop(0,'#abe9ff75');aura.addColorStop(.4,'#56bcdd30');aura.addColorStop(1,'#5acbe000');
+          ctx.fillStyle=aura;ctx.fillRect(x-radius*2,y-radius*2,radius*4,radius*4);ctx.restore();
+        }
+        if(t>.16&&t<.9&&!skipMotion){
+          for(let j=12;j>0;j--){const old=throwPose(Math.max(.16,t-j*.007),i,count);ctx.globalAlpha=(1-j/13)*.25*(1-t);ctx.fillStyle=j%3?'#b6edff':'#ffdf92';ctx.beginPath();ctx.arc((old.x-.5)*width*spread+width*.5,centerY+old.y*radius,Math.max(1,radius*.07*(1-j/13)),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
+        }
+        ctx.save();ctx.translate(x,centerY+radius*.87);ctx.scale(1,.21);ctx.globalAlpha=.65/(1+Math.abs(pose.y));
+        const shadow=ctx.createRadialGradient(0,0,0,0,0,radius*1.1);shadow.addColorStop(0,'#000c');shadow.addColorStop(1,'#0000');ctx.fillStyle=shadow;ctx.fillRect(-radius*1.15,-radius*1.15,radius*2.3,radius*2.3);ctx.restore();
+        // Each real contact gets a shockwave and a shower of gold/ice sparks.
+        if(!skipMotion)for(const impact of IMPACTS){
+          const p=(t-impact)/.18;if(p<0||p>1)continue;
+          const at=throwPose(impact,i,count),ix=(at.x-.5)*width*spread+width*.5,iy=centerY+radius*.85;
+          ctx.save();ctx.translate(ix,iy);ctx.scale(1,.4);ctx.globalAlpha=(1-p)*.7;ctx.strokeStyle=impact===.92?'#fff0aa':'#98e7f7';ctx.lineWidth=2*(1-p)+.5;ctx.beginPath();ctx.arc(0,0,radius*(.5+p*1.7),0,Math.PI*2);ctx.stroke();ctx.restore();
+          for(let j=0;j<24;j++){const a=j*2.39996,d=(18+j%5*10)*p*2.4;ctx.globalAlpha=(1-p)*.8;ctx.fillStyle=j%3?'#ffd98b':'#a4eeff';ctx.beginPath();ctx.arc(ix+Math.cos(a)*d,iy+Math.sin(a)*d*.5-p*35,1+j%3,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
+        }
+        drawDie(ctx,x,y,radius*pose.scale,pose.angles,numbers[i],landed,landed&&i!==keptIndex?.5:1);
+        if(landed){
+          ctx.save();ctx.strokeStyle=i===keptIndex?'#ffe4a8':'#a0b2be55';ctx.lineWidth=1;ctx.globalAlpha=.7;ctx.beginPath();ctx.moveTo(landingX-radius*.4,centerY+radius*1.25);ctx.lineTo(landingX+radius*.4,centerY+radius*1.25);ctx.stroke();ctx.restore();
+        }
       }
-      if(t>.46&&!impacted){impacted=true;onImpact();layer.classList.add('impact');}
-      if(!landed)frame=requestAnimationFrame(paint);else if(!ended){ended=true;layer.classList.add('landed');const dice=roll.rolls.map((n,i)=>`<span class="${roll.rolls.length>1&&n!==roll.kept?'lost':'kept'}"><b>${n}</b><small>${roll.rolls.length>1?(n===roll.kept?'KEEP':'DISCARD'):'D20'}</small></span>`).join('');status.innerHTML=`<div class="landed-numbers">${dice}</div><strong>${roll.kept} + ${roll.bonus} = ${roll.total}</strong><p>Target ${roll.dc} · ${roll.success?'Success':'A setback — the story continues'}</p>${roll.kept===20?'<em>NATURAL 20 ✦</em>':''}`;button.disabled=false;button.focus({preventScroll:true});}
+      const phase=throwPose(t).phase;
+      if(phase!==lastPhase){lastPhase=phase;layer.dataset.phase=phase;phaseLabel.textContent={summon:'Summoning the D20…',flight:'Cast into the unknown',bounce:'Stone. Starlight. A little chaos.',roll:'The fates are still turning…',settle:'Fortune takes its breath…',landed:'FATE HAS SPOKEN'}[phase];}
+      if(!skipMotion&&impactIndex<IMPACTS.length&&t>=IMPACTS[impactIndex]){onImpact(1-impactIndex*.2);impactIndex++;}
+      if(!landed)frame=requestAnimationFrame(paint);
+      else if(!ended){ended=true;layer.classList.add('landed');status.innerHTML=resultMarkup;button.disabled=false;replay.disabled=false;replay.textContent=reduced?'Play full dice animation ↺':'Replay the throw ↺';button.focus({preventScroll:true});}
     }
-    button.addEventListener('click',()=>{cancelAnimationFrame(frame);observer.disconnect();layer.classList.add('dismissed');if(reduced){restore();layer.remove();resolve();}else setTimeout(()=>{restore();layer.remove();resolve();},240);},{once:true});
-    if(reduced)paint(start+duration);else frame=requestAnimationFrame(paint);
+    function launch(full=false){cancelAnimationFrame(frame);skipMotion=reduced&&!full;ended=false;impactIndex=0;lastPhase='';layer.classList.remove('landed');status.textContent='';button.disabled=true;replay.disabled=true;layer.focus({preventScroll:true});start=performance.now();if(skipMotion)paint(start+THROW_DURATION);else paint(start);}
+    replay.addEventListener('click',()=>launch(true));
+    button.addEventListener('click',()=>{cancelAnimationFrame(frame);observer.disconnect();layer.classList.add('dismissed');if(skipMotion){restore();layer.remove();resolve();}else setTimeout(()=>{restore();layer.remove();resolve();},240);},{once:true});
+    launch();
   });
 }

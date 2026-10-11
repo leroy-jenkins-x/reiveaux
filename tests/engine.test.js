@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hintRoom,hintBattle} from '../engine.js';
-import {vertices,faces,projectedFaces,faceNumbers} from '../dice.js';
+import {vertices,faces,projectedFaces,faceNumbers,throwPose,THROW_DURATION} from '../dice.js';
+import {newCrawl,moveCrawl,hintCrawl,stumbleCrawl,crawlNeighbors,SHRINES,EXIT} from '../crawl.js';
 import {panels} from '../story.js';
-import {createState,newRoom,ports,roomConnected,rotateTile,testRoom,solution,choose,check,die,rollDice,neighbors,selectMove,battleAction,restBattle,advance,updateDesign,playPrototype,planText,readSave} from '../engine.js';
+import {createState,newRoom,ports,roomConnected,rotateTile,testRoom,solution,choose,check,die,rollDice,neighbors,selectMove,battleAction,restBattle,advance,updateDesign,playPrototype,planText,readSave,finishCrawl} from '../engine.js';
 const at=id=>({...createState(),started:true,step:panels.findIndex(p=>p.id===id)});
 function solve(s){for(const [key,rotation] of Object.entries(solution)){const index=Number(key);while(s.room.tiles[index].rotation!==rotation)s=rotateTile(s,index);}return testRoom(s);}
 function act(s,pos,action){return battleAction(selectMove(s,pos),action);}
@@ -46,7 +47,7 @@ test('the transformation is joyful, chosen names persist, and even failed dice r
     while(panels[s.step].id!=='done'){
       const p=panels[s.step];
       if(p.id==='vow')s=choose(s,vow);else if(p.id==='ally')s=choose(s,ally);else if(p.id==='name')s=choose(s,name);else if(p.id==='launch')s=choose(s,launch);
-      else if(p.type==='pipes')s=solve(s);else if(p.type==='dice')s=rollDice(s,()=>0);else if(p.type==='battle')s=winBattle(s);else if(p.type==='test')s=playPrototype(s,'bold',()=>0);
+      else if(p.type==='pipes')s=solve(s);else if(p.type==='dice')s=rollDice(s,()=>0);else if(p.type==='battle')s=winBattle(s);else if(p.type==='crawl'){while(!s.crawl.solved)s.crawl=hintCrawl(s.crawl);s=finishCrawl(s);}else if(p.type==='test')s=playPrototype(s,'bold',()=>0);
       s=advance(s);
     }
     assert.equal(s.woman,true);assert.equal(s.identity,name==='madame'?'Madame Reiveaux':'Monsieur Reiveaux');assert.equal(s.answers.launch,launch);assert.match(planText(s),/FIRST 20 MINUTES/);
@@ -94,4 +95,33 @@ test('the animated die is a 20-face solid and its final front face always shows 
   for(let result=1;result<=20;result++){const numbers=faceNumbers(result);assert.equal(numbers[front],result);assert.equal(new Set(numbers).size,20);}
   for(const face of projectedFaces(12,24,36,100))for(const point of face.points)assert.ok(point.every(Number.isFinite));
   assert.throws(()=>faceNumbers(0));assert.throws(()=>faceNumbers(21));
+});
+
+test('dice visibly travel, rotate on three axes, bounce on contact, and settle without a pose jump',()=>{
+  assert.ok(THROW_DURATION>=4000);
+  const launch=throwPose(.16),airborne=throwPose(.28),firstContact=throwPose(.4),secondContact=throwPose(.54),thirdContact=throwPose(.65),final=throwPose(1);
+  assert.ok(airborne.y<launch.y);assert.ok(firstContact.x>launch.x);
+  for(const contact of [firstContact,secondContact,thirdContact])assert.ok(Math.abs(contact.y)<1e-10);
+  assert.ok(throwPose(.47).y<0);assert.ok(throwPose(.59).y<0);
+  assert.equal(final.phase,'landed');assert.equal(final.x,.5);assert.ok(Math.abs(final.y)<1e-12);assert.deepEqual(final.angles,[-.24,.38,.08]);
+  for(let axis=0;axis<3;axis++)assert.ok(Math.abs(launch.angles[axis]-airborne.angles[axis])>Math.PI);
+  for(const boundary of [.16,.4,.54,.65,1]){const a=throwPose(boundary-1e-7),b=throwPose(boundary);assert.ok(Math.abs(a.x-b.x)<1e-5);assert.ok(Math.abs(a.y-b.y)<1e-5);assert.ok(Math.abs(a.scale-b.scale)<1e-5);for(let axis=0;axis<3;axis++)assert.ok(Math.abs(a.angles[axis]-b.angles[axis])<1e-4);}
+  for(let frame=0;frame<=440;frame++){const t=frame/440;for(let i=0;i<2;i++){const p=throwPose(t,i,2);assert.ok([p.x,p.y,p.scale,...p.angles].every(Number.isFinite));}assert.ok(throwPose(t,1,2).x-throwPose(t,0,2).x>.34);}
+  const front=projectedFaces(...final.angles).at(-1).id;for(let result=1;result<=20;result++)assert.equal(faceNumbers(result)[front],result);
+});
+
+test('the living temple requires movement and all runes; hints play legal steps and setbacks preserve runes',()=>{
+  const initial=newCrawl();assert.equal(moveCrawl(initial,'left').pos,initial.pos);assert.equal(moveCrawl(initial,'up').pos,52);
+  let scene=initial,steps=0;
+  while(!scene.solved&&steps<60){const next=hintCrawl(scene);assert.ok(crawlNeighbors(scene.pos).includes(next.pos));scene=next;steps++;}
+  assert.ok(steps>15&&steps<60);assert.equal(scene.pos,EXIT);assert.deepEqual([...scene.collected].sort(),[...SHRINES].sort());assert.equal(scene.solved,true);
+  const blocked=moveCrawl({...initial,pos:10},'up');assert.equal(blocked.solved,false);assert.match(blocked.message,/three runes/);
+  const partial={...initial,pos:22,collected:[15]};const recovered=stumbleCrawl(partial);assert.equal(recovered.pos,15);assert.deepEqual(recovered.collected,[15]);assert.equal(recovered.stumbles,1);
+  assert.throws(()=>advance(at('temple')));assert.throws(()=>finishCrawl(at('temple')));
+  const completed=finishCrawl({...at('temple'),crawl:scene});assert.ok(completed.outcomes.temple);assert.equal(panels[advance(completed).step].id,'mirror');assert.deepEqual(readSave(JSON.stringify(completed)),completed);
+});
+
+test('adding the temple preserves existing players at their previous story beat',()=>{
+  const old={...at('mirror'),version:2,step:7,beat:1};delete old.crawl;const migrated=readSave(JSON.stringify(old));assert.equal(panels[migrated.step].id,'mirror');assert.equal(migrated.beat,1);assert.equal(migrated.crawl.solved,true);
+  const gate={...at('gate'),version:2};delete gate.crawl;const before=readSave(JSON.stringify(gate));assert.equal(panels[before.step].id,'gate');assert.equal(before.crawl.solved,false);
 });

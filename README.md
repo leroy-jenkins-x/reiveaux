@@ -8,11 +8,18 @@ A portrait, manga-style interactive fantasy about Monsieur Reiveaux building a g
 
 The main adventure fits the viewport: no vertical chapter scrolling and no page refresh between scenes. Large painted artwork, short captions, speech bubbles, and tap-to-advance panels replace the long prose chapters. Back navigation and browser-local save/resume keep the player’s place. Only the optional notebook and full-art viewer scroll.
 
+During play, the navbar is removed. A small floating options button opens the notebook, previous panel, sound, and full-art viewer without reserving a navigation strip.
+
+Dice throws use a full-scene canvas renderer with a real 20-face solid, rotating numbered faces, ballistic movement, bounces, shadows, rune rings, and landing sparks. The actual result and modifier remain visible until the player presses **Keep this roll**. Advantage throws two dice; the risky route in the player’s own prototype uses the same animation.
+
+Fantasy effects include drifting magical particles, scene entrances, speech-bubble motion, corridor enchantments, character hops, igniting seals, spell and healing effects, a mirror transformation burst, and a shower of gold in the finale. Reduced-motion preferences skip decorative movement and show dice results immediately.
+
 All four original illustrations are retained unchanged. The story takes a few minutes to read; the puzzles and prototype provide the rest of a short, roughly ten-minute session at the player’s pace.
 
 ## Playable interactions
 
 - Rotate a 4×4 dungeon’s corridors and test a connected route from entrance to exit. An optional hint lights the relevant tiles.
+- **Hint** automatically completes the next corridor or a safe legal encounter turn. It works from partial puzzle progress and restores depleted encounter resources when necessary. Dice and prototype scenes also offer an automatic next-action hint.
 - Physically tap animated d20s to roll, choose a skill approach, add proficiency, spend one Heroic Inspiration reroll, and try advantage with two dice.
 - Solve a 3×3 tactical encounter: move to an adjacent tile, use one action, spend two spell slots to activate distinct seals, and avoid dragon fire. A long rest and encounter revision provide recovery from a failed test.
 - Test concentration with a Constitution saving throw. Both success and setbacks continue the story.
@@ -32,7 +39,7 @@ npm run build
 
 The included GitHub Actions workflow validates and builds `dist/`, then publishes to GitHub Pages on each push to `main`. Pages source is **GitHub Actions**. All asset URLs are relative and work under `/reiveaux/`.
 
-`story.js` owns the short panels and design options; `engine.js` owns testable puzzles, dice, state, and the exported plan; `app.js` and `style.css` own the fixed-screen UI. `tests/engine.test.js` checks puzzle connectivity, legal movement, slot costs, recovery, probability boundaries, complete story paths, and persistence.
+`story.js` owns the short panels and design options; `engine.js` owns testable puzzles, dice, state, and the exported plan; `dice.js` renders animated throws; `app.js` and `style.css` own the fixed-screen UI. `tests/engine.test.js` checks puzzle connectivity, legal movement, slot costs, recovery, probability boundaries, complete story paths, persistence, helper behavior across varied puzzle states, and dice geometry/result correspondence.
 
 The current illustrated edition stores progress separately from the original prose edition, preserving the older browser-local record. No analytics, account, external fonts, or runtime services are required. Sound is optional, keyboard controls and reduced motion are supported, and dynamic text is escaped.
 

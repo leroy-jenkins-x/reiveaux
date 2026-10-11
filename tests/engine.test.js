@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {hintRoom,hintBattle} from '../engine.js';
+import {vertices,faces,projectedFaces,faceNumbers} from '../dice.js';
 import {panels} from '../story.js';
 import {createState,newRoom,ports,roomConnected,rotateTile,testRoom,solution,choose,check,die,rollDice,neighbors,selectMove,battleAction,restBattle,advance,updateDesign,playPrototype,planText,readSave} from '../engine.js';
 const at=id=>({...createState(),started:true,step:panels.findIndex(p=>p.id===id)});
@@ -61,4 +63,35 @@ test('save/resume keeps puzzle rotations and moves; old or malformed saves start
   s=selectMove(at('battle'),3);assert.deepEqual(readSave(JSON.stringify(s)),s);
   assert.deepEqual(readSave('broken'),createState());assert.deepEqual(readSave(JSON.stringify({version:1})),createState());assert.deepEqual(readSave(JSON.stringify({...s,step:100})),createState());
   assert.throws(()=>advance(at('room')));assert.throws(()=>advance(at('gate')));
+});
+
+test('a corridor hint automatically fixes one next tile, and repeated hints finish disturbed boards',()=>{
+  for(let seed=0;seed<16;seed++){
+    let s=at('room');s.room.tiles.forEach((tile,i)=>tile.rotation=(seed+i*3)%4);
+    let clicks=0;
+    while(!s.room.solved&&clicks<10){const old=structuredClone(s);s=hintRoom(s);const changed=s.room.tiles.filter((tile,i)=>tile.rotation!==old.room.tiles[i].rotation);assert.ok(changed.length<=1);clicks++;}
+    assert.equal(s.room.solved,true);assert.ok(s.outcomes.room);assert.throws(()=>hintRoom(s));
+  }
+  const initial=at('room'),snapshot=JSON.stringify(initial);hintRoom(initial);assert.equal(JSON.stringify(initial),snapshot);
+});
+
+test('encounter hints perform safe legal turns from every location and partial progress, recovering depleted resources',()=>{
+  for(let pos=0;pos<9;pos++)for(let mask=0;mask<7;mask++)for(let slots=0;slots<=2;slots++)for(const hp of [1,6]){
+    let s=at('battle');s.battle.pos=pos;s.battle.hp=hp;s.battle.slots=slots;s.battle.lit=[0,2,8].filter((_,i)=>mask&(1<<i));
+    let steps=0;
+    while(!s.battle.solved&&steps<15){const before=s;s=hintBattle(s);assert.ok(s.battle.hp>0);assert.ok(s.battle.slots>=0);assert.equal(s.battle.move,null);if(s.battle.turn>before.battle.turn){assert.ok(s.battle.pos===before.battle.pos||neighbors(before.battle.pos).includes(s.battle.pos));assert.notEqual(s.battle.pos,4);}steps++;}
+    assert.equal(s.battle.solved,true,`position ${pos}, mask ${mask}, slots ${slots}, health ${hp}`);
+  }
+  const lost=at('battle');lost.battle.defeated=true;lost.battle.hp=0;const restored=hintBattle(lost);assert.equal(restored.battle.hp,6);assert.equal(restored.battle.slots,2);
+  assert.throws(()=>hintBattle(winBattle(at('battle'))));
+});
+
+test('the animated die is a 20-face solid and its final front face always shows the actual rolled value',()=>{
+  assert.equal(vertices.length,12);assert.equal(faces.length,20);
+  for(const v of vertices)assert.ok(Math.abs(Math.hypot(...v)-1)<1e-12);
+  const edges=new Set();for(const face of faces){assert.equal(new Set(face).size,3);for(let i=0;i<3;i++)edges.add([face[i],face[(i+1)%3]].sort((a,b)=>a-b).join(','));}assert.equal(edges.size,30);
+  const front=projectedFaces(-.24,.38,.08).at(-1).id;
+  for(let result=1;result<=20;result++){const numbers=faceNumbers(result);assert.equal(numbers[front],result);assert.equal(new Set(numbers).size,20);}
+  for(const face of projectedFaces(12,24,36,100))for(const point of face.points)assert.ok(point.every(Number.isFinite));
+  assert.throws(()=>faceNumbers(0));assert.throws(()=>faceNumbers(21));
 });

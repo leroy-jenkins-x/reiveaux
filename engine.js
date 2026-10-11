@@ -1,4 +1,4 @@
-import {panels,worlds,goals,rules} from './story.js?v=2';
+import {panels,worlds,goals,rules} from './story.js?v=3';
 export const VERSION=2;
 export const route=[12,8,9,5,6,10,11,7,3];
 export const solution={12:3,8:1,9:3,5:1,6:2,10:0,11:3,7:1,3:1};
@@ -18,6 +18,16 @@ export function roomConnected(room){
 function addLesson(s,id,text){const lesson=text||panels.find(p=>p.id===id)?.lesson;if(lesson&&!s.notebook.some(n=>n.id===id))s.notebook.push({id,text:lesson});}
 export function rotateTile(previous,index){if(panels[previous.step]?.id!=='room'||previous.room.solved||!Number.isInteger(index)||index<0||index>15)throw new Error('Tile unavailable');const s=structuredClone(previous);s.room.tiles[index].rotation=(s.room.tiles[index].rotation+1)%4;return s;}
 export function testRoom(previous){const s=structuredClone(previous);s.room.attempts++;s.room.solved=roomConnected(s.room);if(s.room.solved){s.outcomes.room={title:'A working dungeon!',text:'Reiveaux connects your map to the game. The first room is playable.'};addLesson(s,'room');}return s;}
+export function hintRoom(previous){
+  if(panels[previous.step]?.id!=='room'||previous.room.solved)throw new Error('No corridor step to play');
+  if(roomConnected(previous.room))return testRoom(previous);
+  const s=structuredClone(previous);s.room.hint=true;
+  for(const index of route){
+    const wanted=ports({...s.room.tiles[index],rotation:solution[index]}).sort().join(',');
+    if(ports(s.room.tiles[index]).sort().join(',')!==wanted){s.room.tiles[index].rotation=solution[index];s.room.assistTile=index;s.room.assistMessage='Magic turns the next corridor into place.';break;}
+  }
+  return roomConnected(s.room)?testRoom(s):s;
+}
 export function choose(previous,id){const s=structuredClone(previous),p=panels[s.step];if(!p?.choices?.some(c=>c.id===id)||s.outcomes[p.id])throw new Error('Choice unavailable');s.answers[p.id]=id;
   const text={vow:id==='rescue'?'A stranger or a relic. Both doors now have a consequence.':'A lantern charge becomes a precious choice.',ally:id==='scout'?'Élodie joins the playtest. Her tools bonus is +5.':'Lucien joins the playtest. His Arcana bonus is +5.',name:'She signs the build, smiles, and fixes one more dungeon tile.',launch:'Version one is playable. The first players gather around her workbench.'}[p.id];
   if(p.id==='name'){s.woman=true;s.identity=id==='madame'?'Madame Reiveaux':'Monsieur Reiveaux';}
@@ -54,6 +64,23 @@ export function battleAction(previous,action){
   return s;
 }
 export function restBattle(previous){const s=structuredClone(previous);s.battle=newBattle();s.battle.message='A long rest restores health and slots. Try a new route.';return s;}
+export function hintBattle(previous){
+  if(panels[previous.step]?.id!=='battle'||previous.battle.solved)throw new Error('No encounter step to play');
+  const b=previous.battle,required=[0,8].filter(i=>!b.lit.includes(i)).length;
+  if(b.defeated||b.hp===0||b.slots<required){const s=restBattle(previous);s.battle.message='Hint: a long rest restores the resources needed to finish.';s.battle.assisted=true;return s;}
+  const bit=i=>i===0?1:i===2?2:i===8?4:0;
+  const initial=b.lit.reduce((mask,i)=>mask|bit(i),0),queue=[{pos:b.pos,mask:initial,first:null}],seen=new Set();
+  while(queue.length){const node=queue.shift(),key=node.pos+':'+node.mask;if(seen.has(key))continue;seen.add(key);
+    if(node.mask===7&&node.first){let s=selectMove(previous,node.first.pos);s=battleAction(s,node.first.action);s.battle.assisted=true;return s;}
+    for(const pos of [node.pos,...neighbors(node.pos)]){
+      if(pos===4)continue;
+      const fresh=bit(pos)&&!(node.mask&bit(pos));
+      const action=fresh?{0:'illuminate',2:'strike',8:'ward'}[pos]:'wait';
+      queue.push({pos,mask:node.mask|bit(pos),first:node.first||{pos,action}});
+    }
+  }
+  throw new Error('No safe next step found');
+}
 export function advance(previous){
   const s=structuredClone(previous),p=panels[s.step];if(!s.started||s.step>=panels.length-1)throw new Error('No next panel');
   if(['choice','dice','pipes','battle','test'].includes(p.type)&&!s.outcomes[p.id])throw new Error('Play this panel first');

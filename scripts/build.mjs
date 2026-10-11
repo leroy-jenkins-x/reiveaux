@@ -5,7 +5,7 @@ const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 const dist=resolve(root,'dist');
 await rm(dist,{recursive:true,force:true});
 await mkdir(dist,{recursive:true});
-for(const file of ['index.html','style.css','app.js','engine.js','story.js']) await copyFile(resolve(root,file),resolve(dist,file));
+for(const file of ['index.html','style.css','app.js','engine.js','story.js','dice.js']) await copyFile(resolve(root,file),resolve(dist,file));
 await cp(resolve(root,'assets'),resolve(dist,'assets'),{recursive:true});
 await copyFile(resolve(root,'.nojekyll'),resolve(dist,'.nojekyll'));
 console.log('Static site built in dist/');

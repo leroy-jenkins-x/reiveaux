@@ -1,4 +1,4 @@
-# The Maker’s Spell
+# Reiveaux: Métamorphose
 
 **Play:** https://leroy-jenkins-x.github.io/reiveaux/
 
@@ -14,7 +14,7 @@ Dice throws automatically use the full 4.4-second ritual: a real numbered, 20-fa
 
 Sound is on by default. Original, locally hosted MP3 clips replace the very quiet oscillators: a bright magical chime, dice/footstep impacts, and a rising transformation flourish. Media unlocks on the first tap or key press, and the sound switch mutes all clips. `scripts/make_audio.py` reproduces the normalized clips using Python and FFmpeg; no external audio service is used.
 
-Before the page-nine mirror reveal, an animated suspense splash asks what Reiveaux is becoming: a dragon, or a croissant with extremely strong opinions? After the short buildup, **Look in the mirror** reveals the original joyful transformation illustration. Refreshing during the splash resumes before the reveal, preserving the story beat.
+Before the page-nine mirror reveal, an animated suspense splash asks what Reiveaux is becoming: a dragon, or a croissant with extremely strong opinions? The guesses unfold over approximately ten seconds, leaving 2.4–4.6 seconds for each before the next appears. The last line stays until the player presses **Look in the mirror**. **Replay transformation** appears beneath Next on both revealed mirror panels and replays the entire sequence without changing the current panel, choices, or game progress. Refreshing during the initial splash resumes before the reveal, preserving the story beat.
 
 Captions and speech occupy separate rows above and below the illustration; neither can overlap the character. Individual image crops keep Reiveaux’s face prominent. The next-action button pulses with warm gold magic. Hints glow violet and carry small animated sparkles.
 

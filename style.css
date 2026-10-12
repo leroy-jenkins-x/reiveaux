@@ -91,6 +91,9 @@
 .crawl-status{min-height:28px;max-width:38ch;margin-inline:auto;line-height:1.5}
 .type-crawl .compact-result{padding-bottom:2px}
 .temple-replay{display:block;margin:12px auto 0;color:#d8b6f2}
+.mirror-replay{display:block;min-height:36px;margin:9px auto 0;padding:8px 15px;border:1px solid #bc9fda55;border-radius:20px;color:#e4c4ff;background:#36294355;box-shadow:0 0 12px #b486da20;font-size:10px}
+.mirror-replay:hover{box-shadow:0 0 19px #b486da65}
+.cover h1{font-size:clamp(36px,10vw,50px);letter-spacing:-1.3px;line-height:1.06}
 
 .transformation-splash{position:absolute;inset:0;z-index:45;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;background:radial-gradient(ellipse at 50% 35%,#473656 0,#172638 43%,#070d18 85%);animation:ritual-open .4s ease-out;isolation:isolate}
 .transformation-splash:before{content:'';position:absolute;inset:16px;border:1px solid #edcb7d70;pointer-events:none}

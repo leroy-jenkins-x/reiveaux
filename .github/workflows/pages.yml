@@ -1,4 +1,4 @@
-name: Publish The Maker's Spell
+name: "Publish Reiveaux: Métamorphose"
 on:
   push:
     branches: [main]

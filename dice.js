@@ -5,11 +5,15 @@ export const vertices=raw.map(v=>{const length=Math.hypot(...v);return v.map(n=>
 export const faces=[[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
 export function rotatePoint([x,y,z],rx,ry,rz){let a=y*Math.cos(rx)-z*Math.sin(rx),b=y*Math.sin(rx)+z*Math.cos(rx);y=a;z=b;a=x*Math.cos(ry)+z*Math.sin(ry);b=-x*Math.sin(ry)+z*Math.cos(ry);x=a;z=b;return [x*Math.cos(rz)-y*Math.sin(rz),x*Math.sin(rz)+y*Math.cos(rz),z];}
 export function projectedFaces(rx,ry,rz,radius=1){const points=vertices.map(v=>rotatePoint(v,rx,ry,rz));return faces.map((indices,id)=>{const vs=indices.map(i=>points[i]),center=vs.reduce((s,v)=>s.map((n,i)=>n+v[i]),[0,0,0]).map(n=>n/3);return {id,center,points:vs.map(([x,y,z])=>[x*radius/(1-z*.17),y*radius/(1-z*.17)]),depth:center[2]};}).sort((a,b)=>a.depth-b.depth);}
-export function faceNumbers(result){if(!Number.isInteger(result)||result<1||result>20)throw new Error('Expected a d20 result');const list=Array.from({length:20},(_,i)=>i+1),final=projectedFaces(-.24,.38,.08),front=final.at(-1).id;[list[front],list[result-1]]=[list[result-1],list[front]];return list;}
+export function faceNumbers(result){if(!Number.isInteger(result)||result<1||result>20)throw new Error('Expected a d20 result');const list=Array.from({length:20},(_,i)=>i+1),front=FRONT;[list[front],list[result-1]]=[list[result-1],list[front]];return list;}
 const clamp=v=>Math.max(0,Math.min(1,v));
 const ease=v=>1-Math.pow(1-clamp(v),3);
 export const THROW_DURATION=4400;
 const FINAL=[-.24,.38,.08];
+const FRONT=projectedFaces(...FINAL).at(-1).id;
+const FACET_COLORS=Array.from({length:32},(_,i)=>`hsl(211 43% ${14+i*.72}%)`);
+const glyphCache=new Map();
+function glyph(value,dark=false){const key=String(value)+dark;if(glyphCache.has(key))return glyphCache.get(key);const c=document.createElement('canvas');c.width=80;c.height=88;const g=c.getContext('2d');g.font='bold 44px Georgia';g.textAlign='center';g.textBaseline='middle';g.fillStyle=dark?'#18222c':'#ffe8ae';g.fillText(String(value),40,40);glyphCache.set(key,c);return c;}
 const IMPACTS=[.40,.54,.65,.92];
 const lerp=(a,b,t)=>a+(b-a)*t;
 
@@ -22,34 +26,30 @@ export function throwPose(progress,index=0,count=1){
   if(t<.16){
     const p=t/.16;x=landing-direction*.23;y=-.55-Math.sin(p*Math.PI)*.18;scale=lerp(.45,.78,ease(p));
   }else if(t<.40){
-    const p=(t-.16)/.24;x=landing+direction*lerp(-.23,.19,p);y=-.55*(1-p)-1.25*Math.sin(p*Math.PI);scale=lerp(.78,1,p);
+    const p=(t-.16)/.24;x=landing+direction*lerp(-.23,.10,p);y=-.55*(1-p)-1.25*Math.sin(p*Math.PI);scale=lerp(.78,1,p);
   }else if(t<.54){
-    const p=(t-.40)/.14;x=landing+direction*lerp(.19,-.11,p);y=-.63*Math.sin(p*Math.PI);scale=1;
+    const p=(t-.40)/.14;x=landing+direction*lerp(.10,.15,p);y=-.46*Math.sin(p*Math.PI);scale=1;
   }else if(t<.65){
-    const p=(t-.54)/.11;x=landing+direction*lerp(-.11,.06,p);y=-.32*Math.sin(p*Math.PI);scale=1;
+    const p=(t-.54)/.11;x=landing+direction*lerp(.15,.075,p);y=-.23*Math.sin(p*Math.PI);scale=1;
   }else{
-    const p=clamp((t-.65)/.35);x=landing+direction*.06*(1-ease(p));y=-Math.abs(Math.sin(p*Math.PI*3))*.12*(1-p);scale=1;
+    const p=clamp((t-.65)/.35);x=landing+direction*.075*(1-ease(p));y=0;scale=1;
   }
   if(count===2)x=landing+(x-landing)*.25;
   const remaining=Math.pow(1-t,3),wobble=t>.82?Math.sin((t-.82)*80)*Math.pow((1-t)/.18,2)*.14:0;
-  const angles=FINAL.map((angle,axis)=>angle+direction*Math.PI*2*([8.8,6.3,4.4][axis]+index*.35)*remaining+(axis===2?wobble:0));
+  const angles=FINAL.map((angle,axis)=>angle+direction*Math.PI*2*([3.8,2.7,2.1][axis]+index*.35)*remaining+(axis===2?wobble:0));
   return {x,y,scale,angles,phase:t<.16?'summon':t<.4?'flight':t<.65?'bounce':t<.92?'roll':t<1?'settle':'landed'};
 }
 
 function polygon(ctx,points){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.closePath();}
 function drawDie(ctx,x,y,radius,angles,numbers,landed,alpha=1){
-  const mesh=projectedFaces(...angles,radius),front=projectedFaces(...FINAL).at(-1).id;
+  const mesh=projectedFaces(...angles,radius),front=FRONT;
   ctx.save();ctx.translate(x,y);ctx.globalAlpha=alpha;
-  ctx.shadowColor='#72daff55';ctx.shadowBlur=landed?24:14;
+  ctx.shadowBlur=0;
   for(const face of mesh){
     if(face.depth<-.03)continue;
     const [a,b,c]=face.points,light=clamp((face.depth+1)*.5),highlight=landed&&face.id===front;
     polygon(ctx,face.points);
-    const fill=ctx.createLinearGradient(a[0],a[1],c[0],c[1]);
-    fill.addColorStop(0,highlight?'#fff0bc':`hsl(203 40% ${17+light*28}%)`);
-    fill.addColorStop(.45,highlight?'#d8ae60':`hsl(215 50% ${10+light*19}%)`);
-    fill.addColorStop(1,highlight?'#86602a':'#07131e');
-    ctx.fillStyle=fill;ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=highlight?'#d7b16a':FACET_COLORS[Math.min(31,Math.floor(light*31))];ctx.fill();
     ctx.strokeStyle=highlight?'#fff1bc':'#d3b46c';ctx.lineWidth=Math.max(1,radius*.015);ctx.stroke();
     const cx=(a[0]+b[0]+c[0])/3,cy=(a[1]+b[1]+c[1])/3;
     polygon(ctx,face.points.map(p=>[lerp(cx,p[0],.80),lerp(cy,p[1],.80)]));
@@ -57,10 +57,7 @@ function drawDie(ctx,x,y,radius,angles,numbers,landed,alpha=1){
     if(face.depth>.10){
       ctx.save();ctx.translate(cx,cy);
       let angle=Math.atan2(b[1]-a[1],b[0]-a[0]);if(angle>Math.PI/2)angle-=Math.PI;if(angle< -Math.PI/2)angle+=Math.PI;
-      ctx.rotate(angle*.55);ctx.font=`bold ${Math.max(10,radius*(highlight?.39:.22))}px Georgia`;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=highlight?'#18222c':'#ffe8ae';
-      ctx.shadowColor=highlight?'#ffecc4':'#dfba64';ctx.shadowBlur=highlight?9:3;
-      ctx.fillText(String(numbers[face.id]),0,0);ctx.shadowBlur=0;
+      ctx.rotate(angle*.55);const fontSize=Math.max(10,radius*(highlight?.39:.22)),factor=fontSize/44;ctx.drawImage(glyph(numbers[face.id],highlight),-40*factor,-40*factor,80*factor,88*factor);
       if(face.depth>.3){ctx.fillStyle=highlight?'#735225':'#ccb47b';ctx.beginPath();ctx.arc(0,radius*.16,1.25,0,Math.PI*2);ctx.fill();}
       ctx.restore();
     }
@@ -83,16 +80,22 @@ function drawSigil(ctx,x,y,radius,clock,alpha=1){
   ctx.restore();
 }
 
+let atmosphereCache;
 function drawAtmosphere(ctx,w,h,clock,motion){
+  if(!atmosphereCache||atmosphereCache.width!==w||atmosphereCache.height!==h){
+    const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
   const center=h*.40;
-  const glow=ctx.createRadialGradient(w*.5,center,15,w*.5,center,w*.7);
+  const glow=g.createRadialGradient(w*.5,center,15,w*.5,center,w*.7);
   glow.addColorStop(0,'#254258');glow.addColorStop(.55,'#102432');glow.addColorStop(1,'#071019');
-  ctx.fillStyle=glow;ctx.fillRect(0,0,w,h);
-  ctx.save();ctx.strokeStyle='#bb9b5435';ctx.lineWidth=1;
-  ctx.strokeRect(14,17,w-28,h-34);
+  g.fillStyle=glow;g.fillRect(0,0,w,h);
+  g.save();g.strokeStyle='#bb9b5435';g.lineWidth=1;
+  g.strokeRect(14,17,w-28,h-34);
   for(const [x,y,sx,sy] of [[14,17,1,1],[w-14,17,-1,1],[14,h-17,1,-1],[w-14,h-17,-1,-1]]){
-    ctx.save();ctx.translate(x,y);ctx.scale(sx,sy);ctx.beginPath();ctx.moveTo(0,42);ctx.lineTo(0,10);ctx.quadraticCurveTo(0,0,10,0);ctx.lineTo(42,0);ctx.stroke();ctx.beginPath();ctx.moveTo(6,25);ctx.lineTo(14,14);ctx.lineTo(25,6);ctx.stroke();ctx.fillStyle='#e2bd6b';ctx.fillRect(9,9,3,3);ctx.restore();
+    g.save();g.translate(x,y);g.scale(sx,sy);g.beginPath();g.moveTo(0,42);g.lineTo(0,10);g.quadraticCurveTo(0,0,10,0);g.lineTo(42,0);g.stroke();g.beginPath();g.moveTo(6,25);g.lineTo(14,14);g.lineTo(25,6);g.stroke();g.fillStyle='#e2bd6b';g.fillRect(9,9,3,3);g.restore();
   }
+    g.restore();atmosphereCache=c;
+  }
+  ctx.drawImage(atmosphereCache,0,0,w,h);ctx.save();
   for(let i=0;i<45;i++){
     const x=(i*97.13)%w,y=(i*53.71+clock*(motion?5+i%4:0))%(h*.7),alpha=.2+(Math.sin(clock*.7+i)+1)*.16;
     ctx.globalAlpha=alpha;ctx.fillStyle=i%3?'#e3c889':'#98d7e3';ctx.beginPath();ctx.arc(x,y,i%4===0?1.4:.7,0,Math.PI*2);ctx.fill();
@@ -100,24 +103,25 @@ function drawAtmosphere(ctx,w,h,clock,motion){
   ctx.restore();
 }
 
-export function animateDice(target,roll,{onImpact=()=>{}}={}){
+export function animateDice(target,roll){
   return new Promise(resolve=>{
     const layer=document.createElement('section');layer.className='roll-scene';layer.setAttribute('aria-label','On-screen dice throw');layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.tabIndex=-1;
     layer.innerHTML='<canvas aria-hidden="true"></canvas><div class="roll-heading"><span class="ritual-eyebrow">REIVEAUX: MÉTAMORPHOSE</span><p class="roll-invocation">LET FORTUNE SPEAK</p><span class="ritual-subtitle">A twenty-sided fate, cast in starlight.</span></div><div class="roll-phase" aria-hidden="true">Summoning the D20…</div><div class="landed-roll" role="status" aria-live="polite"></div><div class="dice-controls"><button class="small-button dice-replay" disabled>Replay the throw ↺</button><button class="primary dice-confirm" disabled>Keep this roll <span aria-hidden="true">→</span></button></div>';
     const background=[...target.children].map(el=>[el,el.inert]);background.forEach(([el])=>el.inert=true);
-    const restore=()=>background.forEach(([el,value])=>el.inert=value);
-    target.append(layer);layer.focus({preventScroll:true});
+    const restore=()=>{background.forEach(([el,value])=>el.inert=value);target.classList.remove('dice-active');};
+    target.classList.add('dice-active');target.append(layer);layer.focus({preventScroll:true});
     const canvas=layer.querySelector('canvas'),ctx=canvas.getContext('2d'),button=layer.querySelector('.dice-confirm'),replay=layer.querySelector('.dice-replay'),status=layer.querySelector('.landed-roll'),phaseLabel=layer.querySelector('.roll-phase');
     if(!ctx){restore();layer.remove();resolve();return;}
     const count=roll.rolls.length,numbers=roll.rolls.map(faceNumbers);
-    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,start=0,lastPhase='',impactIndex=0;
-    const resize=()=>{width=target.clientWidth;height=target.clientHeight;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);if(ended)paint(start+THROW_DURATION);};resize();
+    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,start=0,lastPhase='',frameCount=0,paintTotal=0,frameStart=0;
+    const resize=()=>{width=target.clientWidth;height=target.clientHeight;const dpr=Math.min(devicePixelRatio||1,1.5);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);if(ended)paint(start+THROW_DURATION);};resize();
     const observer=new ResizeObserver(resize);observer.observe(target);
     const keptIndex=roll.rolls.indexOf(roll.kept);
     const dice=roll.rolls.map((n,i)=>`<span class="${i===keptIndex?'kept':'lost'}"><b>${n}</b><small>${count>1?(i===keptIndex?'KEEP':'DISCARD'):'D20'}</small></span>`).join('');
     const resultMarkup=`<div class="landed-numbers">${dice}</div><strong>${roll.kept} + ${roll.bonus} = ${roll.total}</strong><p>Target ${roll.dc} · ${roll.success?'Success':'A setback — the story continues'}</p>${roll.kept===20?'<em>NATURAL 20 ✦</em>':''}`;
 
     function paint(now){
+      const paintStart=performance.now();if(!frameCount)frameStart=now;frameCount++;
       const t=clamp((now-start)/THROW_DURATION),landed=t>=1,clock=(now-start)/1000;
       const centerY=height*(height<=600?.37:.40),radius=Math.min(width*(count===2?.18:.25),height*.17,count===2?85:118),spread=1;
       drawAtmosphere(ctx,width,height,clock,true);
@@ -150,11 +154,11 @@ export function animateDice(target,roll,{onImpact=()=>{}}={}){
       }
       const phase=throwPose(t).phase;
       if(phase!==lastPhase){lastPhase=phase;layer.dataset.phase=phase;phaseLabel.textContent={summon:'Summoning the D20…',flight:'Cast into the unknown',bounce:'Stone. Starlight. A little chaos.',roll:'The fates are still turning…',settle:'Fortune takes its breath…',landed:'FATE HAS SPOKEN'}[phase];}
-      if(impactIndex<IMPACTS.length&&t>=IMPACTS[impactIndex]){onImpact(1-impactIndex*.2);impactIndex++;}
+      paintTotal+=performance.now()-paintStart;
       if(!landed)frame=requestAnimationFrame(paint);
-      else if(!ended){ended=true;layer.classList.add('landed');status.innerHTML=resultMarkup;button.disabled=false;replay.disabled=false;replay.textContent='Replay the throw ↺';button.focus({preventScroll:true});}
+      else if(!ended){ended=true;layer.dataset.fps=String(Math.round((frameCount-1)*1000/Math.max(1,now-frameStart)));layer.dataset.paintMs=(paintTotal/frameCount).toFixed(2);layer.classList.add('landed');status.innerHTML=resultMarkup;button.disabled=false;replay.disabled=false;replay.textContent='Replay the throw ↺';button.focus({preventScroll:true});}
     }
-    function launch(){cancelAnimationFrame(frame);ended=false;impactIndex=0;lastPhase='';layer.classList.remove('landed');status.textContent='';button.disabled=true;replay.disabled=true;layer.focus({preventScroll:true});start=performance.now();paint(start);}
+    function launch(){cancelAnimationFrame(frame);ended=false;frameCount=0;paintTotal=0;lastPhase='';layer.classList.remove('landed');status.textContent='';button.disabled=true;replay.disabled=true;layer.focus({preventScroll:true});start=performance.now();paint(start);}
     replay.addEventListener('click',()=>launch());
     button.addEventListener('click',()=>{cancelAnimationFrame(frame);observer.disconnect();layer.classList.add('dismissed');setTimeout(()=>{restore();layer.remove();resolve();},240);},{once:true});
     launch();

@@ -64,6 +64,12 @@ export function battleAction(previous,action){
   if(b.defeated)b.message='The test failed. Reiveaux catches you. Revise the encounter and try again.';
   return s;
 }
+export function tapBattle(previous,pos){
+  const moved=selectMove(previous,pos),fresh=!previous.battle.lit.includes(pos);
+  const action=fresh?({0:'illuminate',2:'strike',8:'ward'}[pos]||'wait'):'wait';
+  if((action==='illuminate'||action==='ward')&&previous.battle.slots===0){const s=battleAction(moved,'wait');s.battle.message='No spell slots remain. Rest & revise, or ask for a hint.';return s;}
+  return battleAction(moved,action);
+}
 export function restBattle(previous){const s=structuredClone(previous);s.battle=newBattle();s.battle.message='A long rest restores health and slots. Try a new route.';return s;}
 export function hintBattle(previous){
   if(panels[previous.step]?.id!=='battle'||previous.battle.solved)throw new Error('No encounter step to play');

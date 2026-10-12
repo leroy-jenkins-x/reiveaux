@@ -104,7 +104,7 @@ test('dice visibly travel, rotate on three axes, bounce on contact, and settle w
   for(const contact of [firstContact,secondContact,thirdContact])assert.ok(Math.abs(contact.y)<1e-10);
   assert.ok(throwPose(.47).y<0);assert.ok(throwPose(.59).y<0);
   assert.equal(final.phase,'landed');assert.equal(final.x,.5);assert.ok(Math.abs(final.y)<1e-12);assert.deepEqual(final.angles,[-.24,.38,.08]);
-  for(let axis=0;axis<3;axis++)assert.ok(Math.abs(launch.angles[axis]-airborne.angles[axis])>Math.PI);
+  for(let axis=0;axis<3;axis++)assert.ok(Math.abs(launch.angles[axis]-airborne.angles[axis])>Math.PI/2);
   for(const boundary of [.16,.4,.54,.65,1]){const a=throwPose(boundary-1e-7),b=throwPose(boundary);assert.ok(Math.abs(a.x-b.x)<1e-5);assert.ok(Math.abs(a.y-b.y)<1e-5);assert.ok(Math.abs(a.scale-b.scale)<1e-5);for(let axis=0;axis<3;axis++)assert.ok(Math.abs(a.angles[axis]-b.angles[axis])<1e-4);}
   for(let frame=0;frame<=440;frame++){const t=frame/440;for(let i=0;i<2;i++){const p=throwPose(t,i,2);assert.ok([p.x,p.y,p.scale,...p.angles].every(Number.isFinite));}assert.ok(throwPose(t,1,2).x-throwPose(t,0,2).x>.34);}
   const front=projectedFaces(...final.angles).at(-1).id;for(let result=1;result<=20;result++)assert.equal(faceNumbers(result)[front],result);

@@ -14,8 +14,14 @@ export const SHRINES=[47,15,19];
 export const ENTRANCE=59,EXIT=3;
 export const directions={up:-7,right:1,down:7,left:-1};
 export const walkable=cell=>Number.isInteger(cell)&&cell>=0&&cell<63&&TEMPLE[Math.floor(cell/7)][cell%7]!=='#';
-export function newCrawl(){return {pos:ENTRANCE,collected:[],steps:0,solved:false,pulses:0,stumbles:0,message:'Move with the arrows. Gather three runes, then reach the northern door.'};}
+export function newCrawl(){return {pos:ENTRANCE,collected:[],steps:0,solved:false,pulses:0,stumbles:0,message:'Tap a rune or a path to walk there. Tap a wisp to cast magic.'};}
 export function crawlNeighbors(cell){return Object.values(directions).map(d=>cell+d).filter(n=>walkable(n)&&Math.abs(n%7-cell%7)+Math.abs(Math.floor(n/7)-Math.floor(cell/7))===1);}
+export function crawlPath(from,to){
+  if(!walkable(from)||!walkable(to))return [];
+  const queue=[[from]],seen=new Set([from]);
+  while(queue.length){const path=queue.shift(),cell=path.at(-1);if(cell===to)return path;for(const next of crawlNeighbors(cell)){if(!seen.has(next)){seen.add(next);queue.push([...path,next]);}}}
+  return [];
+}
 export function moveCrawl(previous,direction){
   if(previous.solved||!Object.hasOwn(directions,direction))return previous;
   const next=previous.pos+directions[direction];if(!crawlNeighbors(previous.pos).includes(next))return {...previous,message:'A temple wall. Try another direction.'};
@@ -41,7 +47,7 @@ function star(ctx,x,y,r,rotation=0){ctx.save();ctx.translate(x,y);ctx.rotate(rot
 
 export function mountCrawl(container,initial,{onMove,onPulse,onHit,reduced=false}={}){
   const canvas=container.querySelector('canvas'),ctx=canvas.getContext('2d');if(!ctx)return {destroy(){},setState(){}};
-  let state=initial,width=container.clientWidth,height=container.clientHeight,frame,alive=true,held=null,lastMove=0,clock=0,previous=initial.pos,moveAt=performance.now(),pulseAt=-10000,protectedUntil=0,facing=0;
+  let state=initial,width=container.clientWidth,height=container.clientHeight,frame,alive=true,held=null,lastMove=0,clock=0,previous=initial.pos,moveAt=performance.now(),pulseAt=-10000,protectedUntil=0,facing=0,targetCell=null;
   const start=performance.now(),keys=new Set();
   const resize=()=>{width=container.clientWidth;height=container.clientHeight;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);};resize();const observer=new ResizeObserver(resize);observer.observe(container);
   function setState(next,{guided=false,pulse=false}={}){if(next.pos!==state.pos){previous=state.pos;moveAt=performance.now();const d=next.pos-state.pos;facing=d===-7?0:d===1?Math.PI/2:d===7?Math.PI:-Math.PI/2;}if(next.collected.length>state.collected.length)protectedUntil=performance.now()+1300;state=next;if(guided)protectedUntil=performance.now()+900;if(pulse){pulseAt=performance.now();protectedUntil=pulseAt+3000;}if(state.solved)protectedUntil=Infinity;}
@@ -49,7 +55,20 @@ export function mountCrawl(container,initial,{onMove,onPulse,onHit,reduced=false
   const keyDirection={ArrowUp:'up',ArrowRight:'right',ArrowDown:'down',ArrowLeft:'left',w:'up',d:'right',s:'down',a:'left'};
   function keydown(e){if(document.querySelector('dialog[open]')||e.target.matches('input,textarea'))return;const direction=keyDirection[e.key];if(direction){e.preventDefault();keys.add(direction);if(!e.repeat)requestMove(direction);}if(e.code==='Space'){e.preventDefault();if(!e.repeat)onPulse?.();}}
   function keyup(e){if(keyDirection[e.key])keys.delete(keyDirection[e.key]);}
-  function clearInput(){held=null;keys.clear();}
+  function clearInput(){held=null;keys.clear();targetCell=null;}
+  function tapCanvas(e){
+    if(state.solved||document.querySelector('dialog[open]'))return;
+    e.preventDefault();
+    const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*width/r.width,y=(e.clientY-r.top)*height/r.height;
+    const tile=Math.min(width/7.5,height/9.45),ox=(width-tile*7)/2,oy=(height-tile*9)/2;
+    for(const [row,column] of [[5,3+Math.sin(clock*1.15)*1.75],[3,3+Math.cos(clock*.95)*1.75]]){
+      if(Math.hypot(x-(ox+(column+.5)*tile),y-(oy+(row+.5)*tile))<tile*.38){onPulse?.();return;}
+    }
+    const col=Math.floor((x-ox)/tile),row=Math.floor((y-oy)/tile),cell=row*7+col;
+    if(col<0||col>6||row<0||row>8||!walkable(cell))return;
+    held=null;keys.clear();targetCell=cell;lastMove=0;
+  }
+  canvas.addEventListener('pointerdown',tapCanvas);
   const controls=container.closest('#app').querySelector('.crawl-controls');
   function pointerdown(e){const button=e.target.closest('[data-crawl]');if(!button||state.solved)return;e.preventDefault();held=button.dataset.crawl;button.setPointerCapture(e.pointerId);requestMove(held);}
   function pointerup(){held=null;}
@@ -57,7 +76,12 @@ export function mountCrawl(container,initial,{onMove,onPulse,onHit,reduced=false
   document.addEventListener('keydown',keydown);document.addEventListener('keyup',keyup);window.addEventListener('blur',clearInput);
   function paint(now){
     if(!alive)return;clock=reduced?0:(now-start)/1000;
-    if(!document.querySelector('dialog[open]')){const direction=held||[...keys].at(-1);if(direction&&now-lastMove>175)requestMove(direction);}else clearInput();
+    if(!document.querySelector('dialog[open]')){
+      let direction=held||[...keys].at(-1);
+      if(direction)targetCell=null;
+      else if(targetCell!==null){const path=crawlPath(state.pos,targetCell);if(path.length>1){const delta=path[1]-state.pos;direction=Object.keys(directions).find(d=>directions[d]===delta);}else targetCell=null;}
+      if(direction&&now-lastMove>185)requestMove(direction);
+    }else clearInput();
     const tile=Math.min(width/7.5,height/9.45),ox=(width-tile*7)/2,oy=(height-tile*9)/2;
     const point=cell=>({x:ox+(cell%7+.5)*tile,y:oy+(Math.floor(cell/7)+.5)*tile});
     ctx.fillStyle='#091b29';ctx.fillRect(0,0,width,height);
@@ -78,6 +102,9 @@ export function mountCrawl(container,initial,{onMove,onPulse,onHit,reduced=false
       }
     }
     // Four living braziers. Every flame has its own phase.
+    if(targetCell!==null){
+      const path=crawlPath(state.pos,targetCell),destination=point(targetCell);ctx.save();ctx.strokeStyle='#f5d699a0';ctx.lineWidth=1.5;ctx.setLineDash([3,7]);ctx.beginPath();for(let i=0;i<path.length;i++){const p=point(path[i]);if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(destination.x,destination.y,tile*.32,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#ffe1a1';star(ctx,destination.x,destination.y,tile*.09,clock);ctx.restore();
+    }
     for(const cell of [8,12,36,40]){
       const p=point(cell);p.x-=tile*.32;p.y-=tile*.32;orb(ctx,p.x,p.y,tile*.95,'#efb24e38');ctx.fillStyle='#4a392b';ctx.fillRect(p.x-3,p.y,6,8);
       for(let j=0;j<3;j++){const flicker=1+Math.sin(clock*7+cell+j)*.15;ctx.fillStyle=['#bd592b','#f6b442','#ffe7a4'][j];ctx.beginPath();ctx.ellipse(p.x+Math.sin(clock*5+j)*1.3,p.y-4-j*1.5,(4-j)*flicker,(7-j)*flicker,Math.sin(clock*4)*.1,0,Math.PI*2);ctx.fill();}
@@ -107,5 +134,5 @@ export function mountCrawl(container,initial,{onMove,onPulse,onHit,reduced=false
     frame=requestAnimationFrame(paint);
   }
   frame=requestAnimationFrame(paint);
-  return {setState,destroy(){alive=false;cancelAnimationFrame(frame);observer.disconnect();controls?.removeEventListener('pointerdown',pointerdown);controls?.removeEventListener('pointerup',pointerup);controls?.removeEventListener('pointercancel',pointerup);document.removeEventListener('keydown',keydown);document.removeEventListener('keyup',keyup);window.removeEventListener('blur',clearInput);}};
+  return {setState,destroy(){alive=false;cancelAnimationFrame(frame);observer.disconnect();canvas.removeEventListener('pointerdown',tapCanvas);controls?.removeEventListener('pointerdown',pointerdown);controls?.removeEventListener('pointerup',pointerup);controls?.removeEventListener('pointercancel',pointerup);document.removeEventListener('keydown',keydown);document.removeEventListener('keyup',keyup);window.removeEventListener('blur',clearInput);}};
 }

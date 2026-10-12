@@ -10,7 +10,11 @@ The main adventure fits the viewport: no vertical chapter scrolling and no page 
 
 During play, the navbar is removed. A small floating options button opens the notebook, previous panel, sound, and full-art viewer without reserving a navigation strip.
 
-Dice throws use a 4.4-second full-screen ritual: a real numbered, 20-face solid with obsidian facets and gold edges materializes, spins on three axes, flies, bounces, rolls across a glowing rune circle, and settles on the actual result. Trails, multiple contact shockwaves, sparks, shadows, and optional impact sounds follow the throw. The result and modifier remain visible until **Keep this roll**. **Replay the throw** replays the same result without rerolling or changing progress. Advantage throws two dice; the player’s risky prototype route uses the same animation. Reduced-motion users can explicitly choose **Play full dice animation**.
+Dice throws automatically use the full 4.4-second ritual: a real numbered, 20-face solid with obsidian facets and gold edges materializes, spins on three axes, flies, bounces, rolls across a glowing rune circle, and settles on the actual result. Trails, multiple contact shockwaves, sparks, shadows, and impact sounds follow the throw. The result and modifier remain visible until **Keep this roll**. **Replay the throw** replays the same result without rerolling or changing progress. Advantage throws two dice; the player’s risky prototype route uses the same animation. Per the requested experience, dice animation plays automatically even when reduced motion is enabled; other decorative motion still respects that preference.
+
+Sound is on by default. Original, locally hosted MP3 clips replace the very quiet oscillators: a bright magical chime, dice/footstep impacts, and a rising transformation flourish. Media unlocks on the first tap or key press, and the sound switch mutes all clips. `scripts/make_audio.py` reproduces the normalized clips using Python and FFmpeg; no external audio service is used.
+
+Before the page-nine mirror reveal, an animated suspense splash asks what Reiveaux is becoming: a dragon, or a croissant with extremely strong opinions? After the short buildup, **Look in the mirror** reveals the original joyful transformation illustration. Refreshing during the splash resumes before the reveal, preserving the story beat.
 
 Captions and speech occupy separate rows above and below the illustration; neither can overlap the character. Individual image crops keep Reiveaux’s face prominent. The next-action button pulses with warm gold magic. Hints glow violet and carry small animated sparkles.
 
@@ -18,7 +22,7 @@ After implementing the tactical encounter, Reiveaux steps into an original, Zeld
 
 The floating **⋯** story menu includes **Play the living temple** for a direct jump, and the completed temple can be replayed. These reset that mini-scene alone, preserving the player’s other choices and prototype.
 
-Fantasy effects include drifting magical particles, scene entrances, speech-bubble motion, corridor enchantments, character hops, igniting seals, spell and healing effects, a mirror transformation burst, and a shower of gold in the finale. Reduced-motion preferences skip decorative movement and show dice results immediately.
+Fantasy effects include drifting magical particles, scene entrances, speech-bubble motion, corridor enchantments, character hops, igniting seals, spell and healing effects, a suspenseful mirror transformation, and a shower of gold in the finale. Reduced-motion preferences skip decorative movement while retaining the requested full dice throw.
 
 All four original illustrations are retained unchanged. The story takes a few minutes to read; the puzzles and prototype provide the rest of a short, roughly ten-minute session at the player’s pace.
 

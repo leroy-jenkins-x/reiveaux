@@ -91,4 +91,28 @@
 .crawl-status{min-height:28px;max-width:38ch;margin-inline:auto;line-height:1.5}
 .type-crawl .compact-result{padding-bottom:2px}
 .temple-replay{display:block;margin:12px auto 0;color:#d8b6f2}
+
+.transformation-splash{position:absolute;inset:0;z-index:45;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;background:radial-gradient(ellipse at 50% 35%,#473656 0,#172638 43%,#070d18 85%);animation:ritual-open .4s ease-out;isolation:isolate}
+.transformation-splash:before{content:'';position:absolute;inset:16px;border:1px solid #edcb7d70;pointer-events:none}
+.transformation-splash:after{content:'';position:absolute;inset:-30%;z-index:-1;background:conic-gradient(from 10deg,transparent,#f7c57713,transparent 80deg,#b991f726,transparent 190deg,#8fe6e918,transparent);animation:suspense-orbit 18s linear infinite}
+.suspense-runes{position:relative;width:210px;height:210px;display:grid;place-items:center;margin-bottom:28px}
+.suspense-runes i{position:absolute;inset:0;border:1px solid #e9c87d;border-radius:50%;box-shadow:0 0 30px #d5b77030;animation:suspense-orbit 10s linear infinite}
+.suspense-runes i:before,.suspense-runes i:after{content:'✧';position:absolute;top:-9px;left:50%;color:#ffdd98;text-shadow:0 0 15px #ffd67a;font-style:normal}
+.suspense-runes i:after{top:auto;bottom:-9px}
+.suspense-runes i:nth-child(2){inset:18px;border-color:#b59de8;border-style:dashed;animation-direction:reverse;animation-duration:14s}
+.suspense-runes i:nth-child(3){inset:40px;border-color:#94d6df;animation-duration:7s}
+.suspense-runes>span{font-size:80px;color:#ffe5a2;filter:drop-shadow(0 0 28px #e2ae73);animation:suspense-heart 2.4s ease-in-out infinite}
+.suspense-copy{position:relative;text-align:center;max-width:360px}
+.suspense-copy h2{font-family:var(--serif);font-size:clamp(34px,9vw,43px);font-weight:400;line-height:1.1;letter-spacing:-.8px;color:#fff0c9;margin:16px 0 24px;text-shadow:0 0 22px #dfba6540}
+.suspense-guess{font-family:var(--serif);font-size:23px;line-height:1.3;color:#e3c7ff;min-height:65px;display:grid;align-content:center}
+.suspense-copy>small{display:block;font-size:10px;line-height:1.6;color:#a9bbc9;max-width:29ch;margin:23px auto 0}
+.transformation-confirm{position:relative;width:100%;max-width:370px;margin-top:38px}
+.transformation-confirm:disabled{background:#354153;color:#8e9cae;border-color:#6b728085;box-shadow:none;animation:none}
+.transformation-splash.ready .suspense-runes>span{color:#fff1c4;filter:drop-shadow(0 0 38px #f2ca83)}
+.guess-arrives{animation:guess-entrance .35s ease-out}
+@keyframes suspense-orbit{to{transform:rotate(360deg)}}
+@keyframes suspense-heart{50%{transform:scale(1.15) rotate(25deg);filter:drop-shadow(0 0 40px #dfbb92)}}
+@keyframes guess-entrance{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(max-height:720px){.transformation-splash{padding:24px}.suspense-runes{width:150px;height:150px;margin-bottom:20px}.suspense-runes>span{font-size:60px}.suspense-copy h2{font-size:34px;margin-block:14px 17px}.suspense-guess{font-size:20px;min-height:55px}.suspense-copy>small{margin-top:16px}.transformation-confirm{margin-top:25px}}
+@media(max-height:560px){.suspense-runes{width:105px;height:105px;margin-bottom:10px}.suspense-runes i:nth-child(3){inset:25px}.suspense-runes>span{font-size:42px}.suspense-copy h2{font-size:29px;margin-block:9px 10px}.suspense-guess{font-size:17px;min-height:43px}.suspense-copy>small{font-size:9px;margin-top:10px}.transformation-confirm{margin-top:17px}}
 @media(max-height:720px){.crawl-dpad{grid-template-columns:repeat(3,38px);grid-template-rows:repeat(3,29px);gap:3px}.crawl-pulse{width:103px;min-height:82px}.crawl-controls{gap:25px;margin-block:3px 7px}.crawl-status{font-size:9px;min-height:25px}}

@@ -100,7 +100,7 @@ function drawAtmosphere(ctx,w,h,clock,motion){
   ctx.restore();
 }
 
-export function animateDice(target,roll,{reduced=false,onImpact=()=>{}}={}){
+export function animateDice(target,roll,{onImpact=()=>{}}={}){
   return new Promise(resolve=>{
     const layer=document.createElement('section');layer.className='roll-scene';layer.setAttribute('aria-label','On-screen dice throw');layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.tabIndex=-1;
     layer.innerHTML='<canvas aria-hidden="true"></canvas><div class="roll-heading"><span class="ritual-eyebrow">THE MAKER’S SPELL</span><p class="roll-invocation">LET FORTUNE SPEAK</p><span class="ritual-subtitle">A twenty-sided fate, cast in starlight.</span></div><div class="roll-phase" aria-hidden="true">Summoning the D20…</div><div class="landed-roll" role="status" aria-live="polite"></div><div class="dice-controls"><button class="small-button dice-replay" disabled>Replay the throw ↺</button><button class="primary dice-confirm" disabled>Keep this roll <span aria-hidden="true">→</span></button></div>';
@@ -110,7 +110,7 @@ export function animateDice(target,roll,{reduced=false,onImpact=()=>{}}={}){
     const canvas=layer.querySelector('canvas'),ctx=canvas.getContext('2d'),button=layer.querySelector('.dice-confirm'),replay=layer.querySelector('.dice-replay'),status=layer.querySelector('.landed-roll'),phaseLabel=layer.querySelector('.roll-phase');
     if(!ctx){restore();layer.remove();resolve();return;}
     const count=roll.rolls.length,numbers=roll.rolls.map(faceNumbers);
-    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,start=0,skipMotion=reduced,lastPhase='',impactIndex=0;
+    let width=target.clientWidth,height=target.clientHeight,frame,ended=false,start=0,lastPhase='',impactIndex=0;
     const resize=()=>{width=target.clientWidth;height=target.clientHeight;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);if(ended)paint(start+THROW_DURATION);};resize();
     const observer=new ResizeObserver(resize);observer.observe(target);
     const keptIndex=roll.rolls.indexOf(roll.kept);
@@ -118,26 +118,26 @@ export function animateDice(target,roll,{reduced=false,onImpact=()=>{}}={}){
     const resultMarkup=`<div class="landed-numbers">${dice}</div><strong>${roll.kept} + ${roll.bonus} = ${roll.total}</strong><p>Target ${roll.dc} · ${roll.success?'Success':'A setback — the story continues'}</p>${roll.kept===20?'<em>NATURAL 20 ✦</em>':''}`;
 
     function paint(now){
-      const t=skipMotion?1:clamp((now-start)/THROW_DURATION),landed=t>=1,clock=skipMotion?0:(now-start)/1000;
+      const t=clamp((now-start)/THROW_DURATION),landed=t>=1,clock=(now-start)/1000;
       const centerY=height*(height<=600?.37:.40),radius=Math.min(width*(count===2?.18:.25),height*.17,count===2?85:118),spread=1;
-      drawAtmosphere(ctx,width,height,clock,!skipMotion);
+      drawAtmosphere(ctx,width,height,clock,true);
       drawSigil(ctx,width*.5,centerY+radius*.9,width*.37,clock,landed?.75:.95);
       for(let i=0;i<count;i++){
         const pose=throwPose(t,i,count),x=(pose.x-.5)*width*spread+width*.5,y=centerY+pose.y*radius;
         const landingX=width*(count===2?(i===0?.28:.72):.5);
         // Summoning light and a ribbon follow the airborne, rotating solid.
-        if(t<.40&&!skipMotion){
+        if(t<.40){
           ctx.save();ctx.globalAlpha=.6*(1-clamp((t-.22)/.18));
           const aura=ctx.createRadialGradient(x,y,0,x,y,radius*1.75);aura.addColorStop(0,'#abe9ff75');aura.addColorStop(.4,'#56bcdd30');aura.addColorStop(1,'#5acbe000');
           ctx.fillStyle=aura;ctx.fillRect(x-radius*2,y-radius*2,radius*4,radius*4);ctx.restore();
         }
-        if(t>.16&&t<.9&&!skipMotion){
+        if(t>.16&&t<.9){
           for(let j=12;j>0;j--){const old=throwPose(Math.max(.16,t-j*.007),i,count);ctx.globalAlpha=(1-j/13)*.25*(1-t);ctx.fillStyle=j%3?'#b6edff':'#ffdf92';ctx.beginPath();ctx.arc((old.x-.5)*width*spread+width*.5,centerY+old.y*radius,Math.max(1,radius*.07*(1-j/13)),0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
         }
         ctx.save();ctx.translate(x,centerY+radius*.87);ctx.scale(1,.21);ctx.globalAlpha=.65/(1+Math.abs(pose.y));
         const shadow=ctx.createRadialGradient(0,0,0,0,0,radius*1.1);shadow.addColorStop(0,'#000c');shadow.addColorStop(1,'#0000');ctx.fillStyle=shadow;ctx.fillRect(-radius*1.15,-radius*1.15,radius*2.3,radius*2.3);ctx.restore();
         // Each real contact gets a shockwave and a shower of gold/ice sparks.
-        if(!skipMotion)for(const impact of IMPACTS){
+        for(const impact of IMPACTS){
           const p=(t-impact)/.18;if(p<0||p>1)continue;
           const at=throwPose(impact,i,count),ix=(at.x-.5)*width*spread+width*.5,iy=centerY+radius*.85;
           ctx.save();ctx.translate(ix,iy);ctx.scale(1,.4);ctx.globalAlpha=(1-p)*.7;ctx.strokeStyle=impact===.92?'#fff0aa':'#98e7f7';ctx.lineWidth=2*(1-p)+.5;ctx.beginPath();ctx.arc(0,0,radius*(.5+p*1.7),0,Math.PI*2);ctx.stroke();ctx.restore();
@@ -150,13 +150,13 @@ export function animateDice(target,roll,{reduced=false,onImpact=()=>{}}={}){
       }
       const phase=throwPose(t).phase;
       if(phase!==lastPhase){lastPhase=phase;layer.dataset.phase=phase;phaseLabel.textContent={summon:'Summoning the D20…',flight:'Cast into the unknown',bounce:'Stone. Starlight. A little chaos.',roll:'The fates are still turning…',settle:'Fortune takes its breath…',landed:'FATE HAS SPOKEN'}[phase];}
-      if(!skipMotion&&impactIndex<IMPACTS.length&&t>=IMPACTS[impactIndex]){onImpact(1-impactIndex*.2);impactIndex++;}
+      if(impactIndex<IMPACTS.length&&t>=IMPACTS[impactIndex]){onImpact(1-impactIndex*.2);impactIndex++;}
       if(!landed)frame=requestAnimationFrame(paint);
-      else if(!ended){ended=true;layer.classList.add('landed');status.innerHTML=resultMarkup;button.disabled=false;replay.disabled=false;replay.textContent=reduced?'Play full dice animation ↺':'Replay the throw ↺';button.focus({preventScroll:true});}
+      else if(!ended){ended=true;layer.classList.add('landed');status.innerHTML=resultMarkup;button.disabled=false;replay.disabled=false;replay.textContent='Replay the throw ↺';button.focus({preventScroll:true});}
     }
-    function launch(full=false){cancelAnimationFrame(frame);skipMotion=reduced&&!full;ended=false;impactIndex=0;lastPhase='';layer.classList.remove('landed');status.textContent='';button.disabled=true;replay.disabled=true;layer.focus({preventScroll:true});start=performance.now();if(skipMotion)paint(start+THROW_DURATION);else paint(start);}
-    replay.addEventListener('click',()=>launch(true));
-    button.addEventListener('click',()=>{cancelAnimationFrame(frame);observer.disconnect();layer.classList.add('dismissed');if(skipMotion){restore();layer.remove();resolve();}else setTimeout(()=>{restore();layer.remove();resolve();},240);},{once:true});
+    function launch(){cancelAnimationFrame(frame);ended=false;impactIndex=0;lastPhase='';layer.classList.remove('landed');status.textContent='';button.disabled=true;replay.disabled=true;layer.focus({preventScroll:true});start=performance.now();paint(start);}
+    replay.addEventListener('click',()=>launch());
+    button.addEventListener('click',()=>{cancelAnimationFrame(frame);observer.disconnect();layer.classList.add('dismissed');setTimeout(()=>{restore();layer.remove();resolve();},240);},{once:true});
     launch();
   });
 }
